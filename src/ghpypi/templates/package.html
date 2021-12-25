@@ -10,9 +10,9 @@
     {% for file in files|reverse %}
       <li>
         {% if file.sha256 %}
-          <a href="{{ file.url }}#sha256={{ file.sha256 }}">{{ file.file_name }}</a>
+          <a href="{{ file.url }}#sha256={{ file.sha256 }}">{{ file.filename }}</a>
         {% else %}
-          <a href="{{ file.url }}">{{ file.file_name }}</a>
+          <a href="{{ file.url }}">{{ file.filename }}</a>
         {% endif %}
         ({{ file }})
       </li>
