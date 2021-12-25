@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>{{ package_name }}</title>
+</head>
+<body>
+  <h1>{{ package_name }}</h1>
+  <p>Latest version: {{ (files|last).version }}</p>
+  <ul>
+    {% for file in files|reverse %}
+      <li>
+        {% if file.sha256 %}
+          <a href="{{ file.url }}#sha256={{ file.sha256 }}">{{ file.file_name }}</a>
+        {% else %}
+          <a href="{{ file.url }}">{{ file.file_name }}</a>
+        {% endif %}
+        ({{ file }})
+      </li>
+    {% endfor %}
+  </ul>
+</body>
+</html>

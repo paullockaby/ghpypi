@@ -1,0 +1,30 @@
+name: Generate Index
+
+on:
+  workflow_dispatch:
+  repository_dispatch:
+  schedule:
+    - cron: "0 0 * * *"
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+
+      - name: setup python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+
+      - name: generate index
+        run: |
+          pip install poetry
+          poetry install --no-ansi --no-interaction --no-dev
+          poetry run ghpypi --output=docs --repositories=repositories.txt --token=${{ secrets.GITHUB_TOKEN }}
+
+      - uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: automatic index update [skip ci]

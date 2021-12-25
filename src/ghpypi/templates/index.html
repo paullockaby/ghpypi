@@ -1,0 +1,94 @@
+{% extends "_base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+{% block head  %}
+  <style>
+      .searchbox {
+          display: table-cell;
+          padding-left: 15px;
+          vertical-align: middle;
+      }
+
+      .searchbox input {
+          width: 100%;
+          margin: 0;
+          padding: 4px;
+          font-size: 16px;
+          box-sizing: border-box;
+          border: none;
+          line-height: 16px;
+      }
+
+      .package {
+          display: block;
+          font-size: 14px;
+          padding: 10px;
+          color: #111;
+          text-decoration: none;
+      }
+
+      .package:hover {
+          background-color: #ebf1ff !important;
+          color: #333;
+      }
+
+      .package.odd {
+          background-color: #fefefe;
+      }
+
+      .package.even {
+          background-color: #f8f8f8;
+      }
+  </style>
+{% endblock %}
+
+{% block header %}
+  <div class="searchbox">
+    <label for="search" style="display: none;">Search</label>
+    <input id="search" type="text" autofocus="autofocus" placeholder="Filter" value="" />
+  </div>
+{% endblock %}
+
+{% block content %}
+  <div class="packages width" id="packages">
+    {% for package, latest_version in packages %}
+      <a class="package {{ loop.cycle('odd', 'even') }}" href="simple/{{ package }}/index.html" data-name="{{ package }}">
+        <strong>{{ package }}</strong> (latest version: {{ latest_version }})
+      </a>
+    {% endfor %}
+  </div>
+
+  <script>
+      (function() {
+          function normalize(str) {
+              return str.toLowerCase().replace(/[._-]+/g, '-');
+          }
+          function filter() {
+              var words = normalize(search.value).trim().split();
+              var rows = document.getElementsByClassName('package');
+              var odd = true;
+              for (var i = 0; i < rows.length; i++) {
+                  var row = rows[i];
+                  var name = row.dataset.name;
+                  var ok = true;
+                  for (var j = 0; j < words.length; j++) {
+                      if (!normalize(name).includes(words[j])) {
+                          ok = false;
+                          break;
+                      }
+                  }
+                  if (ok) {
+                      row.style.backgroundColor = odd ? '#fefefe' : '#f8f8f8';
+                      odd = !odd;
+                  }
+                  row.style.display = ok ? 'block' : 'none';
+              }
+          }
+
+          var search = document.getElementById('search');
+          search.oninput = filter;
+          search.onpaste = filter;
+          search.onpropertychange = filter;
+      })();
+  </script>
+{% endblock %}

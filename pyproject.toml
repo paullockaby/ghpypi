@@ -1,0 +1,36 @@
+[tool.poetry]
+name = "ghpypi"
+version = "0.0.0"  # DO NOT CHANGE -- set during build
+description = "A custom package index generator."
+authors = ["Paul Lockaby <paul@paullockaby.com>"]
+packages = [{include = "ghpypi", from = "src"}]
+
+[tool.poetry.scripts]
+ghpypi = "ghpypi:main"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+PyGithub = "^1.55"
+distlib = "^0.3.4"
+Jinja2 = "^3.0.3"
+packaging = "^21.3"
+atomicwrites = "^1.4.0"
+requests = "^2.26.0"
+
+[tool.poetry.dev-dependencies]
+pytest = "^6.2.5"
+pytest-flake8 = "^1.0.7"
+flake8 = "^3.9.2"
+flake8-bandit = "^2.1.2"
+flake8-builtins = "^1.5.3"
+flake8-bugbear = "^21.11.29"
+flake8-comprehensions = "^3.7.0"
+flake8-isort = "^4.1.1"
+pep8-naming = "^0.12.1"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+addopts = "--flake8 -p no:warnings --log-level=ERROR"
