@@ -20,7 +20,7 @@ requests = "^2.26.0"
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"
 pytest-flake8 = "^1.0.7"
-flake8 = "^3.9.2"
+flake8 = "^4.0.1"
 flake8-bandit = "^2.1.2"
 flake8-builtins = "^1.5.3"
 flake8-bugbear = "^21.11.29"
