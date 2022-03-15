@@ -18,7 +18,7 @@ atomicwrites = "^1.4.0"
 requests = "^2.26.0"
 
 [tool.poetry.dev-dependencies]
-pytest = "^7.0.1"
+pytest = "^7.1.0"
 pytest-flake8 = "^1.0.7"
 flake8-builtins = "^1.5.3"
 flake8-bugbear = "^22.1.11"
