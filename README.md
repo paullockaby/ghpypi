@@ -65,7 +65,7 @@ jobs:
       - name: setup python
         uses: actions/setup-python@v2
         with:
-          python-version: 3.10
+          python-version: "3.10.x"
 
       - name: generate index
         run: |
