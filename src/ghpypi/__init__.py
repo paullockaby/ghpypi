@@ -65,13 +65,13 @@ def main() -> None:
         stream=sys.stdout,
     )
 
-    sys.exit(run(
+    run(
         args.repositories,
         args.output,
         args.token,
         args.token_stdin,
         args.title,
-    ))
+    )
 
 
 if __name__ == "__main__":

@@ -1,14 +1,15 @@
 import collections
+import dataclasses
 import json
 import logging
 import os.path
 import re
 import sys
+from dataclasses import dataclass
 from datetime import datetime
-from typing import (Any, Dict, Iterator, List, NamedTuple, Optional, Set,
-                    Tuple, TypeVar)
+from typing import Any, Dict, Iterator, List, Optional, Set, Tuple, Union
 
-import distlib.wheel
+import distlib.wheel  # type: ignore
 import jinja2
 import packaging.utils
 import packaging.version
@@ -58,12 +59,14 @@ def guess_name_version_from_filename(filename: str) -> Tuple[str, Optional[str]]
     return name, version
 
 
-class Repository(NamedTuple):
+@dataclass(frozen=True)
+class Repository:
     owner: str
     name: str
 
 
-class Release(NamedTuple):
+@dataclass(frozen=True)
+class Release:
     filename: str
     url: str
     sha256: str
@@ -71,25 +74,24 @@ class Release(NamedTuple):
     uploaded_by: str
 
 
-# define the type Package ahead of time so that type checking works
-PackageType = TypeVar("PackageType", bound="Package")
-
-
-class Package(NamedTuple):
+@dataclass(frozen=True, order=False)
+class Package:
     filename: str
-    name: str
     url: str
     sha256: str
-    version: Optional[str]
-    parsed_version: packaging.version.Version
-    uploaded_at: Optional[datetime]
-    uploaded_by: Optional[str]
+    uploaded_at: datetime
+    uploaded_by: str
+    name: str
+    version: Union[packaging.version.LegacyVersion, packaging.version.Version]
 
-    def __lt__(self: PackageType, other: PackageType) -> bool:
+    def __lt__(self: "Package", other: "Package") -> bool:
         return self.sort_key < other.sort_key
 
-    def __str__(self: PackageType) -> str:
-        info = self.version or "unknown version"
+    def __gt__(self: "Package", other: "Package") -> bool:
+        return self.sort_key > other.sort_key
+
+    def __str__(self: "Package") -> str:
+        info = str(self.version)
         if self.uploaded_at is not None:
             info += f", {self.uploaded_at.strftime('%Y-%m-%d %H:%M:%S')}"
         if self.uploaded_by is not None:
@@ -97,11 +99,11 @@ class Package(NamedTuple):
         return info
 
     @property
-    def sort_key(self: PackageType) -> Tuple[str, packaging.version.Version, str]:
+    def sort_key(self: "Package") -> Tuple[str, Union[packaging.version.LegacyVersion, packaging.version.Version], str]:
         """Sort key for a file name."""
         return (
             self.name,
-            self.parsed_version,
+            self.version,
 
             # This looks ridiculous, but it's so that like extensions sort
             # together when the name and version are the same (otherwise it
@@ -112,30 +114,10 @@ class Package(NamedTuple):
             self.filename[::-1],
         )
 
-    @classmethod
-    def create(
-            cls: PackageType,
-            *,
-            filename: str,
-            url: str,
-            sha256: str,
-            uploaded_at: Optional[int] = None,
-            uploaded_by: Optional[str] = None,
-    ) -> "Package":
-        if not re.match(r"[a-zA-Z0-9_\-\.\+]+$", filename) or ".." in filename:
-            raise ValueError(f"unsafe package name: {filename}")
-
-        name, version = guess_name_version_from_filename(filename)
-        return cls(
-            filename=filename,
-            name=packaging.utils.canonicalize_name(name),
-            url=url,
-            sha256=sha256,
-            version=version,
-            parsed_version=packaging.version.parse(version or "0"),
-            uploaded_at=uploaded_at,
-            uploaded_by=uploaded_by,
-        )
+    def __post_init__(self: "Package") -> None:
+        # make sure that this thing is a valid file name
+        if not re.match(r"[a-zA-Z0-9_\-\.\+]+$", self.filename) or ".." in self.filename:
+            raise ValueError(f"unsafe package name: {self.filename}")
 
 
 def get_package_json(files: List[Package]) -> Dict[str, Any]:
@@ -145,20 +127,19 @@ def get_package_json(files: List[Package]) -> Dict[str, Any]:
 
     latest = files[-1]
     for f in files:
-        if f.version is not None:
-            by_version[f.version].append({
-                "filename": f.filename,
-                "url": f.url,
-                "digests": {"sha256": f.sha256},
-            })
+        by_version[str(f.version)].append({
+            "filename": f.filename,
+            "url": f.url,
+            "digests": {"sha256": f.sha256},
+        })
 
     return {
         "info": {
             "name": latest.name,
-            "version": latest.version,
+            "version": str(latest.version),
         },
         "releases": by_version,
-        "urls": by_version[latest.version] if latest.version else [],
+        "urls": by_version[str(latest.version)],
     }
 
 
@@ -218,7 +199,16 @@ def create_packages(releases: Iterator[Release]) -> Dict[str, Set[Package]]:
     packages: Dict[str, Set[Package]] = collections.defaultdict(set)
     for release in releases:
         try:
-            package = Package.create(**release._asdict())
+            package_data = dataclasses.asdict(release)
+
+            # set values that the user did not provide
+            name, version = guess_name_version_from_filename(release.filename)
+            package_data["name"] = packaging.utils.canonicalize_name(name)
+
+            # parse the version to mutate it
+            package_data["version"] = packaging.version.parse(version or "0")
+
+            package = Package(**package_data)
         except ValueError as e:
             logger.warning("%s (skipping package)", e)
         else:
@@ -316,6 +306,10 @@ def run(repositories: str, output: str, token: str, token_stdin: bool, title: Op
     token = get_github_token(token, token_stdin)
     for repository in load_repositories(repositories):
         packages.update(create_packages(get_releases(token, repository)))
+
+    # set a default title
+    if title is None:
+        title = "My Personal PyPI"
 
     # this actually spits out HTML files
     build(packages, output, title)

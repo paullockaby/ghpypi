@@ -32,7 +32,7 @@ In the above example we have exactly one GitHub repository called `ghpypi` and i
 
 Once the file has been created, invoke the script:
 
-    $ echo $GITHUB_TOKEN | ghpypi --output docs --repositories repositories --token-stdin
+    $ echo $GITHUB_TOKEN | ghpypi --output docs --repositories repositories.txt --token-stdin
 
 The newly built static index can now be found under `docs` and you can use [GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/creating-a-github-pages-site) to share the `docs` directory.
 
