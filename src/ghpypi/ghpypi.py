@@ -213,7 +213,7 @@ def create_packages(releases: Iterator[Release]) -> Dict[str, Set[Package]]:
         try:
             package = Package.create(**release._asdict())
         except ValueError as e:
-            logger.warning(f"{e} (skipping package)", file=sys.stderr)
+            logger.warning(f"{e} (skipping package)")
         else:
             packages[package.name].add(package)
 
