@@ -9,7 +9,7 @@ packages = [{include = "ghpypi", from = "src"}]
 ghpypi = "ghpypi:main"
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.8"
 PyGithub = "^1.55"
 distlib = "^0.3.4"
 Jinja2 = "^3.1.2"
