@@ -1,5 +1,14 @@
 [flake8]
-ignore = E501
+inline-quotes = double
+ignore =
+    E501
+    PLC0103
+    PLC0111
+    PLC0112
+    PLC0114
+    PLC0115
+    PLC0116
+    PLC0301
 exclude =
     .git
     .github

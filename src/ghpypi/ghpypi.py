@@ -5,7 +5,8 @@ import os.path
 import re
 import sys
 from datetime import datetime
-from typing import Any, Dict, Iterator, List, NamedTuple, Optional, Set, Tuple
+from typing import (Any, Dict, Iterator, List, NamedTuple, Optional, Set,
+                    Tuple, TypeVar)
 
 import distlib.wheel
 import jinja2
@@ -30,30 +31,31 @@ def guess_name_version_from_filename(filename: str) -> Tuple[str, Optional[str]]
         m = distlib.wheel.FILENAME_RE.match(filename)
         if m is not None:
             return m.group("nm"), m.group("vn")
+
+        # found nothing in our regex, bail
+        raise ValueError(f"invalid package name: {filename}")
+
+    # These don't have a well-defined format like wheels do, so they are sort
+    # of "best effort", with lots of tests to back them up. The most important
+    # thing is to correctly parse the name.
+    name = remove_extension(filename)
+    version = None
+
+    if "-" in name:
+        if name.count("-") == 1:
+            name, version = name.split("-")
         else:
-            raise ValueError(f"invalid package name: {filename}")
-    else:
-        # These don't have a well-defined format like wheels do, so they are
-        # sort of "best effort", with lots of tests to back them up.
-        # The most important thing is to correctly parse the name.
-        name = remove_extension(filename)
-        version = None
+            parts = name.split("-")
+            for i in range(len(parts) - 1, 0, -1):
+                part = parts[i]
+                if "." in part and re.search(r"[0-9]", part):
+                    name, version = "-".join(parts[0:i]), "-".join(parts[i:])
 
-        if "-" in name:
-            if name.count("-") == 1:
-                name, version = name.split("-")
-            else:
-                parts = name.split("-")
-                for i in range(len(parts) - 1, 0, -1):
-                    part = parts[i]
-                    if "." in part and re.search(r"[0-9]", part):
-                        name, version = "-".join(parts[0:i]), "-".join(parts[i:])
+    # possible with poorly-named files
+    if len(name) <= 0:
+        raise ValueError(f"invalid package name: {filename}")
 
-        # possible with poorly-named files
-        if len(name) <= 0:
-            raise ValueError(f"invalid package name: {filename}")
-
-        return name, version
+    return name, version
 
 
 class Repository(NamedTuple):
@@ -69,6 +71,10 @@ class Release(NamedTuple):
     uploaded_by: str
 
 
+# define the type Package ahead of time so that type checking works
+PackageType = TypeVar("PackageType", bound="Package")
+
+
 class Package(NamedTuple):
     filename: str
     name: str
@@ -79,10 +85,10 @@ class Package(NamedTuple):
     uploaded_at: Optional[datetime]
     uploaded_by: Optional[str]
 
-    def __lt__(self, other: Tuple[Any, ...]) -> bool:
+    def __lt__(self: PackageType, other: PackageType) -> bool:
         return self.sort_key < other.sort_key
 
-    def __str__(self) -> str:
+    def __str__(self: PackageType) -> str:
         info = self.version or "unknown version"
         if self.uploaded_at is not None:
             info += f", {self.uploaded_at.strftime('%Y-%m-%d %H:%M:%S')}"
@@ -91,7 +97,7 @@ class Package(NamedTuple):
         return info
 
     @property
-    def sort_key(self) -> Tuple[str, packaging.version.Version, str]:
+    def sort_key(self: PackageType) -> Tuple[str, packaging.version.Version, str]:
         """Sort key for a file name."""
         return (
             self.name,
@@ -108,7 +114,7 @@ class Package(NamedTuple):
 
     @classmethod
     def create(
-            cls,
+            cls: PackageType,
             *,
             filename: str,
             url: str,
@@ -171,7 +177,8 @@ def build(packages: Dict[str, Set[Package]], output: str, title: str) -> None:
     sorted_packages = {name: sorted(files) for name, files in packages.items()}
 
     for package_name, sorted_files in sorted_packages.items():
-        logger.info(f"processing {package_name} with {len(sorted_files)} files")
+        logger.info("processing %s with %d files", package_name, len(sorted_files))
+
         # /simple/{package}/index.html
         simple_package_dir = os.path.join(simple, package_name)
         os.makedirs(simple_package_dir, exist_ok=True)
@@ -213,7 +220,7 @@ def create_packages(releases: Iterator[Release]) -> Dict[str, Set[Package]]:
         try:
             package = Package.create(**release._asdict())
         except ValueError as e:
-            logger.warning(f"{e} (skipping package)")
+            logger.warning("%s (skipping package)", e)
         else:
             packages[package.name].add(package)
 
@@ -221,11 +228,11 @@ def create_packages(releases: Iterator[Release]) -> Dict[str, Set[Package]]:
 
 
 def load_repositories(path: str) -> Iterator[Repository]:
-    with open(path, "rt") as f:
+    with open(path, "rt", encoding="utf-8") as f:
         for line in f.read().splitlines():
             parts = line.split("/")
             if len(parts) == 2:
-                logger.info(f"found repository: {line}")
+                logger.info("found repository: %s", line)
                 yield Repository(owner=parts[0], name=parts[1])
             else:
                 raise ValueError(f"invalid repository name: {line}")
@@ -252,7 +259,7 @@ def get_github_token(token: str, token_stdin: bool) -> str:
 
 
 def get_releases(token: str, repository: Repository) -> Iterator[Release]:
-    logger.info(f"fetching releases for {repository.owner}/{repository.name}")
+    logger.info("fetching releases for %s/%s", repository.owner, repository.name)
 
     g = Github(token)
     r = g.get_repo(f"{repository.owner}/{repository.name}")
@@ -260,7 +267,7 @@ def get_releases(token: str, repository: Repository) -> Iterator[Release]:
     releases = r.get_releases()
     for release in releases:
         assets = release.raw_data.get("assets", [])
-        if not len(assets):
+        if len(assets) == 0:
             continue
 
         # keep track of all of the assets that we've found
@@ -273,7 +280,7 @@ def get_releases(token: str, repository: Repository) -> Iterator[Release]:
             name = asset["name"]
             url = asset["browser_download_url"]
 
-            # we only want wheels and tar.gz and maybe
+            # we only want wheels and tar.gz and maybe pre-existing checksums
             if not (name.endswith(".whl") or name.endswith(".gz") or name.endswith(".bz2") or name == "sha256sum.txt"):
                 continue
 
@@ -304,17 +311,11 @@ def get_releases(token: str, repository: Repository) -> Iterator[Release]:
             yield Release(**result)
 
 
-def run(repositories: str, output: str, token: str, token_stdin: bool, title: Optional[str] = None) -> int:
-    try:
-        packages = {}
-        token = get_github_token(token, token_stdin)
-        for repository in load_repositories(repositories):
-            packages.update(create_packages(get_releases(token, repository)))
+def run(repositories: str, output: str, token: str, token_stdin: bool, title: Optional[str] = None) -> None:
+    packages = {}
+    token = get_github_token(token, token_stdin)
+    for repository in load_repositories(repositories):
+        packages.update(create_packages(get_releases(token, repository)))
 
-        # this actually spits out HTML files
-        build(packages, output, title)
-
-        return 0
-    except Exception as e:
-        logger.exception(str(e))
-        return 1
+    # this actually spits out HTML files
+    build(packages, output, title)
