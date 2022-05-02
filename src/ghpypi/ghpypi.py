@@ -1,29 +1,40 @@
 import collections
-import dataclasses
+import hashlib
+import importlib.metadata
 import json
 import logging
 import os.path
 import re
 import sys
-from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, Iterator, List, Optional, Set, Tuple, Union
+from typing import (Any, Dict, Iterator, List, NamedTuple, Optional, Set,
+                    Tuple, Union, cast)
 
 import distlib.wheel  # type: ignore
+import github
 import jinja2
 import packaging.utils
 import packaging.version
 import requests
 from atomicwrites import atomic_write
-from github import Github
 
 logger = logging.getLogger(__name__)
 
 
-def remove_extension(name: str) -> str:
-    if name.endswith(("gz", "bz2")):
-        name, _ = name.rsplit(".", 1)
-    name, _ = name.rsplit(".", 1)
+def get_version(package_name: str = __name__) -> str:
+    try:
+        return importlib.metadata.version(package_name)
+    except importlib.metadata.PackageNotFoundError:
+        return "0.0.0"
+
+
+def remove_package_extension(name: str) -> str:
+    name, ext = os.path.splitext(name)
+    if not ext:
+        raise ValueError(f"invalid package name: {name}")
+    if name.endswith(".tar"):
+        name, _ = os.path.splitext(name)
+
     return name
 
 
@@ -39,7 +50,7 @@ def guess_name_version_from_filename(filename: str) -> Tuple[str, Optional[str]]
     # These don't have a well-defined format like wheels do, so they are sort
     # of "best effort", with lots of tests to back them up. The most important
     # thing is to correctly parse the name.
-    name = remove_extension(filename)
+    name = remove_package_extension(filename)
     version = None
 
     if "-" in name:
@@ -59,14 +70,12 @@ def guess_name_version_from_filename(filename: str) -> Tuple[str, Optional[str]]
     return name, version
 
 
-@dataclass(frozen=True)
-class Repository:
+class Repository(NamedTuple):
     owner: str
     name: str
 
 
-@dataclass(frozen=True)
-class Release:
+class Release(NamedTuple):
     filename: str
     url: str
     sha256: str
@@ -74,29 +83,26 @@ class Release:
     uploaded_by: str
 
 
-@dataclass(frozen=True, order=False)
-class Package:
+class Package(NamedTuple):
     filename: str
     url: str
     sha256: str
     uploaded_at: datetime
     uploaded_by: str
+
+    # the above fields all come from release
+    # these fields get calculated by whatever creates us
     name: str
     version: Union[packaging.version.LegacyVersion, packaging.version.Version]
 
-    def __lt__(self: "Package", other: "Package") -> bool:
-        return self.sort_key < other.sort_key
-
-    def __gt__(self: "Package", other: "Package") -> bool:
-        return self.sort_key > other.sort_key
-
     def __str__(self: "Package") -> str:
-        info = str(self.version)
-        if self.uploaded_at is not None:
-            info += f", {self.uploaded_at.strftime('%Y-%m-%d %H:%M:%S')}"
-        if self.uploaded_by is not None:
-            info += f", {self.uploaded_by}"
-        return info
+        return f"{self.version}, {self.uploaded_at.strftime('%Y-%m-%d %H:%M:%S')}, {self.uploaded_by}"
+
+    def __lt__(self: Tuple[object, ...], other: Tuple[object, ...]) -> bool:
+        return cast("Package", self).sort_key < cast("Package", other).sort_key
+
+    def __gt__(self: Tuple[object, ...], other: Tuple[object, ...]) -> bool:
+        return cast("Package", self).sort_key > cast("Package", other).sort_key
 
     @property
     def sort_key(self: "Package") -> Tuple[str, Union[packaging.version.LegacyVersion, packaging.version.Version], str]:
@@ -113,11 +119,6 @@ class Package:
             # amusing, even though it took 6 lines of comments to explain this.
             self.filename[::-1],
         )
-
-    def __post_init__(self: "Package") -> None:
-        # make sure that this thing is a valid file name
-        if not re.match(r"[a-zA-Z0-9_\-\.\+]+$", self.filename) or ".." in self.filename:
-            raise ValueError(f"unsafe package name: {self.filename}")
 
 
 def get_package_json(files: List[Package]) -> Dict[str, Any]:
@@ -153,8 +154,7 @@ def build(packages: Dict[str, Set[Package]], output: str, title: str) -> None:
     )
     jinja_env.globals["title"] = title
 
-    # Sorting package versions is actually pretty expensive, so we do it once
-    # at the start.
+    # sorting package versions is actually pretty expensive so we do it once at the start
     sorted_packages = {name: sorted(files) for name, files in packages.items()}
 
     for package_name, sorted_files in sorted_packages.items():
@@ -179,7 +179,7 @@ def build(packages: Dict[str, Set[Package]], output: str, title: str) -> None:
     os.makedirs(simple, exist_ok=True)
     with atomic_write(os.path.join(simple, "index.html"), overwrite=True) as f:
         f.write(jinja_env.get_template("simple.html").render(
-            package_names=sorted(sorted_packages),
+            package_names=sorted_packages,
         ))
 
     # /index.html
@@ -195,20 +195,33 @@ def build(packages: Dict[str, Set[Package]], output: str, title: str) -> None:
         ))
 
 
+def create_package(release: Release) -> Package:
+    if not re.match(r"[a-zA-Z0-9_\-\.\+]+$", release.filename) or ".." in release.filename:
+        raise ValueError(f"unsafe package name: {release.filename}")
+
+    # set values that the user did not provide
+    name, version = guess_name_version_from_filename(release.filename)
+    name = packaging.utils.canonicalize_name(name)
+
+    # parse the version to mutate it
+    parsed_version = packaging.version.parse(version or "0")
+
+    return Package(
+        filename=release.filename,
+        name=name,
+        version=parsed_version,
+        url=release.url,
+        sha256=release.sha256,
+        uploaded_at=release.uploaded_at,
+        uploaded_by=release.uploaded_by,
+    )
+
+
 def create_packages(releases: Iterator[Release]) -> Dict[str, Set[Package]]:
     packages: Dict[str, Set[Package]] = collections.defaultdict(set)
     for release in releases:
         try:
-            package_data = dataclasses.asdict(release)
-
-            # set values that the user did not provide
-            name, version = guess_name_version_from_filename(release.filename)
-            package_data["name"] = packaging.utils.canonicalize_name(name)
-
-            # parse the version to mutate it
-            package_data["version"] = packaging.version.parse(version or "0")
-
-            package = Package(**package_data)
+            package = create_package(release)
         except ValueError as e:
             logger.warning("%s (skipping package)", e)
         else:
@@ -220,29 +233,41 @@ def create_packages(releases: Iterator[Release]) -> Dict[str, Set[Package]]:
 def load_repositories(path: str) -> Iterator[Repository]:
     with open(path, "rt", encoding="utf-8") as f:
         for line in f.read().splitlines():
+            # strip and skip comments
+            line = line.strip()
+            if line.startswith("#") or len(line) == 0:
+                continue
+
+            # expect each line to look like "org/repo"
             parts = line.split("/")
-            if len(parts) == 2:
+            if len(parts) == 2 and len(parts[0]) and len(parts[1]):
                 logger.info("found repository: %s", line)
                 yield Repository(owner=parts[0], name=parts[1])
             else:
                 raise ValueError(f"invalid repository name: {line}")
 
 
-def get_github_token(token: str, token_stdin: bool) -> str:
+def get_github_token(token: Optional[str], token_stdin: bool) -> str:
     # if provided then use it
     if token is not None:
-        return token
+        token = token.strip()
+        if len(token):
+            return token
 
     # if we were told to look to stdin then look there
     if token_stdin:
         tokens = sys.stdin.read().splitlines()
         if len(tokens) and len(tokens[0]):
-            return tokens[0]
+            token = tokens[0].strip()
+            if len(token):
+                return token
 
     # if we didn't find it anywhere else then look for an environment variable
     token = os.environ.get("GITHUB_TOKEN")
-    if token:
-        return token
+    if token is not None:
+        token = token.strip()
+        if len(token):
+            return token
 
     # no token found anywhere
     raise ValueError("No value for GITHUB_TOKEN.")
@@ -251,54 +276,132 @@ def get_github_token(token: str, token_stdin: bool) -> str:
 def get_releases(token: str, repository: Repository) -> Iterator[Release]:
     logger.info("fetching releases for %s/%s", repository.owner, repository.name)
 
-    g = Github(token)
-    r = g.get_repo(f"{repository.owner}/{repository.name}")
+    gh = github.Github(token)
+    gh_repo = gh.get_repo(f"{repository.owner}/{repository.name}")
+    releases = gh_repo.get_releases()
 
-    releases = r.get_releases()
     for release in releases:
-        assets = release.raw_data.get("assets", [])
-        if len(assets) == 0:
+        assets = release.raw_data.get("assets") or []
+        yield from create_releases(assets)
+
+
+# the list of releases looks like this:
+# [{'browser_download_url': 'https://github.com/paullockaby/ghpypi/releases/download/v1.0.1/ghpypi-1.0.1-py3-none-any.whl',
+#   'content_type': 'raw',
+#   'created_at': '2021-12-25T06:22:18Z',
+#   'download_count': 1,
+#   'id': 52550362,
+#   'label': '',
+#   'name': 'ghpypi-1.0.1-py3-none-any.whl',
+#   'node_id': 'RA_kwDOGj9c4c4DIdra',
+#   'size': 12904,
+#   'state': 'uploaded',
+#   'updated_at': '2021-12-25T06:22:19Z',
+#   'uploader': {'avatar_url': 'https://avatars.githubusercontent.com/in/15368?v=4',
+#                'events_url': 'https://api.github.com/users/github-actions%5Bbot%5D/events{/privacy}',
+#                'followers_url': 'https://api.github.com/users/github-actions%5Bbot%5D/followers',
+#                'following_url': 'https://api.github.com/users/github-actions%5Bbot%5D/following{/other_user}',
+#                'gists_url': 'https://api.github.com/users/github-actions%5Bbot%5D/gists{/gist_id}',
+#                'gravatar_id': '',
+#                'html_url': 'https://github.com/apps/github-actions',
+#                'id': 41898282,
+#                'login': 'github-actions[bot]',
+#                'node_id': 'MDM6Qm90NDE4OTgyODI=',
+#                'organizations_url': 'https://api.github.com/users/github-actions%5Bbot%5D/orgs',
+#                'received_events_url': 'https://api.github.com/users/github-actions%5Bbot%5D/received_events',
+#                'repos_url': 'https://api.github.com/users/github-actions%5Bbot%5D/repos',
+#                'site_admin': False,
+#                'starred_url': 'https://api.github.com/users/github-actions%5Bbot%5D/starred{/owner}{/repo}',
+#                'subscriptions_url': 'https://api.github.com/users/github-actions%5Bbot%5D/subscriptions',
+#                'type': 'Bot',
+#                'url': 'https://api.github.com/users/github-actions%5Bbot%5D'},
+#   'url': 'https://api.github.com/repos/paullockaby/ghpypi/releases/assets/52550362'},
+#  {'browser_download_url': 'https://github.com/paullockaby/ghpypi/releases/download/v1.0.1/ghpypi-1.0.1.tar.gz',
+#   'content_type': 'raw',
+#   'created_at': '2021-12-25T06:22:19Z',
+#   'download_count': 1,
+#   'id': 52550363,
+#   'label': '',
+#   'name': 'ghpypi-1.0.1.tar.gz',
+#   'node_id': 'RA_kwDOGj9c4c4DIdrb',
+#   'size': 11402,
+#   'state': 'uploaded',
+#   'updated_at': '2021-12-25T06:22:19Z',
+#   'uploader': {'avatar_url': 'https://avatars.githubusercontent.com/in/15368?v=4',
+#                'events_url': 'https://api.github.com/users/github-actions%5Bbot%5D/events{/privacy}',
+#                'followers_url': 'https://api.github.com/users/github-actions%5Bbot%5D/followers',
+#                'following_url': 'https://api.github.com/users/github-actions%5Bbot%5D/following{/other_user}',
+#                'gists_url': 'https://api.github.com/users/github-actions%5Bbot%5D/gists{/gist_id}',
+#                'gravatar_id': '',
+#                'html_url': 'https://github.com/apps/github-actions',
+#                'id': 41898282,
+#                'login': 'github-actions[bot]',
+#                'node_id': 'MDM6Qm90NDE4OTgyODI=',
+#                'organizations_url': 'https://api.github.com/users/github-actions%5Bbot%5D/orgs',
+#                'received_events_url': 'https://api.github.com/users/github-actions%5Bbot%5D/received_events',
+#                'repos_url': 'https://api.github.com/users/github-actions%5Bbot%5D/repos',
+#                'site_admin': False,
+#                'starred_url': 'https://api.github.com/users/github-actions%5Bbot%5D/starred{/owner}{/repo}',
+#                'subscriptions_url': 'https://api.github.com/users/github-actions%5Bbot%5D/subscriptions',
+#                'type': 'Bot',
+#                'url': 'https://api.github.com/users/github-actions%5Bbot%5D'},
+#   'url': 'https://api.github.com/repos/paullockaby/ghpypi/releases/assets/52550363'}]
+
+def create_releases(releases: list[dict]) -> Iterator[Release]:
+    if len(releases) == 0:
+        return
+
+    # keep track of all the assets that we've found
+    results = []
+
+    # keep track of any sha256 sums that we find
+    sha256sums = {}
+
+    for release in releases:
+        name = release["name"]
+        url = release["browser_download_url"]
+
+        # we only want wheels and tar.gz and maybe pre-existing checksums
+        if not (name.endswith(".whl") or name.endswith(".gz") or name.endswith(".bz2") or name == "sha256sum.txt"):
             continue
 
-        # keep track of all of the assets that we've found
-        results = []
+        if name == "sha256sum.txt":
+            response = requests.get(url)
+            response.raise_for_status()  # we only expect 200 responses
 
-        # keep track of any sha256 sums that we find
-        sha256sums = {}
+            # set the encoding to ascii so that we don't make the system guess
+            response.encoding = "ascii"
 
-        for asset in assets:
-            name = asset["name"]
-            url = asset["browser_download_url"]
+            # split lines then split each line
+            sha256sums = {x[1]: x[0] for x in [line.strip().split() for line in response.text.split("\n") if len(line.strip())]}
 
-            # we only want wheels and tar.gz and maybe pre-existing checksums
-            if not (name.endswith(".whl") or name.endswith(".gz") or name.endswith(".bz2") or name == "sha256sum.txt"):
-                continue
+        else:
+            results.append({
+                "filename": name,
+                "url": url,
+                "sha256": None,
+                "uploaded_at": datetime.fromisoformat(release["updated_at"].rstrip("Z")),
+                "uploaded_by": release["uploader"]["login"],
+            })
 
-            if name == "sha256sum.txt":
-                response = requests.get(url)
-                response.raise_for_status()  # we only expect 200 responses
+    for result in results:
+        if result["filename"] in sha256sums:
+            # found the hash, just add it to the file
+            result["sha256"] = sha256sums[result["filename"]]
+        else:
+            # for any file that doesn't have a sha256 hash, download the file and calculate it
+            response = requests.get(result["url"], stream=True)
+            response.raise_for_status()  # we only expect 200 responses
 
-                # set the encoding to ascii so that we don't make the system guess
-                response.encoding = "ascii"
+            # expecting a binary response
+            hasher = hashlib.sha256()
+            for chunk in response.iter_content(chunk_size=1024):
+                if chunk:  # filter out keep-alive new chunks
+                    hasher.update(chunk)
 
-                # split lines then split each line
-                sha256sums = {x[1]: x[0] for x in [line.strip().split() for line in response.text.split("\n") if len(line.strip())]}
+            result["sha256"] = hasher.hexdigest()
 
-            else:
-                results.append({
-                    "filename": name,
-                    "url": url,
-                    "sha256": None,
-                    "uploaded_at": datetime.fromisoformat(asset["updated_at"].rstrip("Z")),
-                    "uploaded_by": asset["uploader"]["login"],
-                })
-
-        # add the sha256 sums (if they exist)
-        for result in results:
-            if result["filename"] in sha256sums:
-                result["sha256"] = sha256sums[result["filename"]]
-
-            yield Release(**result)
+        yield Release(**result)
 
 
 def run(repositories: str, output: str, token: str, token_stdin: bool, title: Optional[str] = None) -> None:
@@ -309,7 +412,7 @@ def run(repositories: str, output: str, token: str, token_stdin: bool, title: Op
 
     # set a default title
     if title is None:
-        title = "My Personal PyPI"
+        title = "My Private PyPI"
 
     # this actually spits out HTML files
     build(packages, output, title)

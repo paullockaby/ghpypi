@@ -7,9 +7,9 @@ on:
   # allow programmatic triggers
   repository_dispatch:
 
-  # run every night at midnight UTC
+  # run every monday at 12am, UTC
   schedule:
-    - cron: "0 0 * * *"
+    - cron: "0 0 * * 1"
 
 jobs:
   generate:

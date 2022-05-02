@@ -9,6 +9,8 @@ ignore =
     PLC0115
     PLC0116
     PLC0301
+per-file-ignores =
+    tests/*:S101,B011,ANN
 exclude =
     .git
     .github

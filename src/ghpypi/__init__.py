@@ -1,17 +1,15 @@
 import argparse
-import importlib.metadata
 import logging
 import sys
+from typing import List
 
-from ghpypi.ghpypi import run
+from ghpypi.ghpypi import get_version, run
 
-try:
-    __version__ = importlib.metadata.version(__name__)
-except importlib.metadata.PackageNotFoundError:
-    __version__ = "0.0.0"
+# calculate what version of this program we are running
+__version__ = get_version()
 
 
-def main() -> None:
+def parse_arguments(arguments: List[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="ghpypi")
 
     token_input_group = parser.add_mutually_exclusive_group(required=False)
@@ -57,7 +55,11 @@ def main() -> None:
         version=__version__,
         help="return the version number and exit",
     )
-    args = parser.parse_args()
+    return parser.parse_args(arguments)
+
+
+def main() -> None:
+    args = parse_arguments(sys.argv[1:])
 
     logging.basicConfig(
         format="[%(asctime)s] %(levelname)-8s - %(message)s",
