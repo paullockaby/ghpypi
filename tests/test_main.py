@@ -1,12 +1,17 @@
+import hashlib
 import io
 import os
+from datetime import datetime
 from pathlib import PosixPath
 
 import github
+import packaging.version
 import pytest
+import responses
 from pytest_mock import MockerFixture
 
 from ghpypi import ghpypi
+from ghpypi.ghpypi import Artifact, Package
 
 
 @pytest.mark.parametrize(("package_name", "version"), (
@@ -156,12 +161,12 @@ def test_github_tokens(mocker: MockerFixture):
     # token provided on stdin but it is blank
     mocker.patch("sys.stdin", io.StringIO(""))
     with pytest.raises(ValueError):
-        assert ghpypi.get_github_token(None, True)
+        ghpypi.get_github_token(None, True)
 
     # token provided on stdin but it is white space
     mocker.patch("sys.stdin", io.StringIO("       "))
     with pytest.raises(ValueError):
-        assert ghpypi.get_github_token(None, True)
+        ghpypi.get_github_token(None, True)
 
     # token in the environment
     mocker.patch("os.environ.get", lambda key: "foobarbaz" if key == "GITHUB_TOKEN" else original_environ(key))
@@ -178,7 +183,7 @@ def test_github_tokens(mocker: MockerFixture):
         ghpypi.get_github_token(None, False)
 
 
-def test_get_releases(mocker: MockerFixture):
+def test_get_artifacts(mocker: MockerFixture):
     # fake our access to github
     token = "abcdefghijklmnopqrstuvwxyz1234567890"  # noqa
     repository = ghpypi.Repository("paullockaby", "ghpypi")
@@ -194,7 +199,7 @@ def test_get_releases(mocker: MockerFixture):
         "get_releases.return_value": [],
     })
     mocker.patch("github.MainClass.Github.get_repo", return_value=mock_get_repo)
-    releases = list(ghpypi.get_releases(token, repository))
+    releases = list(ghpypi.get_artifacts(token, repository))
     assert len(releases) == 0
 
     # test releases returning something with no asset keyword.
@@ -210,7 +215,7 @@ def test_get_releases(mocker: MockerFixture):
         ],
     })
     mocker.patch("github.MainClass.Github.get_repo", return_value=mock_get_repo)
-    releases = list(ghpypi.get_releases(token, repository))
+    releases = list(ghpypi.get_artifacts(token, repository))
     assert len(releases) == 0
 
     # test releases returning something with no assets.
@@ -224,15 +229,415 @@ def test_get_releases(mocker: MockerFixture):
         ],
     })
     mocker.patch("github.MainClass.Github.get_repo", return_value=mock_get_repo)
-    releases = list(ghpypi.get_releases(token, repository))
+    releases = list(ghpypi.get_artifacts(token, repository))
     assert len(releases) == 0
 
 
-def test_create_releases():
-    pass
+def test_create_packages_empty():
+    assert not ghpypi.create_packages([])
 
-# to test:
-#  - create_releases (need a list of github objects)
-#  - create_package (needs a list of releases)
-#  - build (needs a dict of Package Name as key and set of Packages as value, mock file system)
-#  - get_package_json (needs a list of Packages)
+
+@pytest.mark.parametrize(("artifacts", "packages"), (
+    (
+        [
+            Artifact(
+                filename="ghpypi-1.0.1-py3-none-any.whl",
+                url="https://github.com/paullockaby/ghpypi/releases/download/v1.0.1/ghpypi-1.0.1-py3-none-any.whl",
+                sha256="ae36bbabd6424037f716c6a78f907d6f9b058ab399a042b2c8530087beca9c3c",
+                uploaded_at=datetime(2021, 12, 25, 6, 22, 19),
+                uploaded_by="github-actions[bot]",
+            ),
+            Artifact(
+                filename="ghpypi-1.0.1.tar.gz",
+                url="https://github.com/paullockaby/ghpypi/releases/download/v1.0.1/ghpypi-1.0.1.tar.gz",
+                sha256="0bca915a7d7129b4d5a21e5381fee0678016708139029c0c5ccadf71c0cf5265",
+                uploaded_at=datetime(2021, 12, 25, 6, 22, 19),
+                uploaded_by="github-actions[bot]",
+            ),
+            Artifact(
+                filename="ghpypi-1.0.0-py3-none-any.whl",
+                url="https://github.com/paullockaby/ghpypi/releases/download/v1.0.0/ghpypi-1.0.0-py3-none-any.whl",
+                sha256="8db833603bd5f71a7ae2d94364edcc996dd851f42da0069040cab954be53d48d",
+                uploaded_at=datetime(2021, 12, 25, 6, 16, 8),
+                uploaded_by="github-actions[bot]",
+            ),
+            Artifact(
+                filename="ghpypi-1.0.0.tar.gz",
+                url="https://github.com/paullockaby/ghpypi/releases/download/v1.0.0/ghpypi-1.0.0.tar.gz",
+                sha256="fa6dfbe92d7b150b788da980d53f07e6e84c4079118783d5905a72cc9b636ba3",
+                uploaded_at=datetime(2021, 12, 25, 6, 16, 9),
+                uploaded_by="github-actions[bot]",
+            ),
+            # these will be ignored because they're invalid
+            Artifact(
+                filename="",
+                url="http://example.com/org/repo/releases/download/xxx/foobar.whl",
+                sha256="1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+                uploaded_at=datetime(2020, 1, 1, 0, 0, 0),
+                uploaded_by="github-actions[bot]",
+            ),
+            Artifact(
+                filename="lol",
+                url="http://example.com/org/repo/releases/download/xxx/foobar.whl",
+                sha256="1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+                uploaded_at=datetime(2020, 1, 1, 0, 0, 0),
+                uploaded_by="github-actions[bot]",
+            ),
+            Artifact(
+                filename="lol-sup",
+                url="http://example.com/org/repo/releases/download/xxx/foobar.whl",
+                sha256="1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+                uploaded_at=datetime(2020, 1, 1, 0, 0, 0),
+                uploaded_by="github-actions[bot]",
+            ),
+            Artifact(
+                filename="-20160920.193125.zip",
+                url="http://example.com/org/repo/releases/download/xxx/foobar.whl",
+                sha256="1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+                uploaded_at=datetime(2020, 1, 1, 0, 0, 0),
+                uploaded_by="github-actions[bot]",
+            ),
+            Artifact(
+                filename=".",
+                url="http://example.com/org/repo/releases/download/xxx/foobar.whl",
+                sha256="1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+                uploaded_at=datetime(2020, 1, 1, 0, 0, 0),
+                uploaded_by="github-actions[bot]",
+            ),
+            Artifact(
+                filename="..",
+                url="http://example.com/org/repo/releases/download/xxx/foobar.whl",
+                sha256="1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+                uploaded_at=datetime(2020, 1, 1, 0, 0, 0),
+                uploaded_by="github-actions[bot]",
+            ),
+            Artifact(
+                filename="/blah-2.tar.gz",
+                url="http://example.com/org/repo/releases/download/xxx/foobar.whl",
+                sha256="1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+                uploaded_at=datetime(2020, 1, 1, 0, 0, 0),
+                uploaded_by="github-actions[bot]",
+            ),
+            Artifact(
+                filename="lol-2.tar.gz/../",
+                url="http://example.com/org/repo/releases/download/xxx/foobar.whl",
+                sha256="1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+                uploaded_at=datetime(2020, 1, 1, 0, 0, 0),
+                uploaded_by="github-actions[bot]",
+            ),
+        ],
+        {
+            "ghpypi": {
+                Package(
+                    filename="ghpypi-1.0.1-py3-none-any.whl",
+                    url="https://github.com/paullockaby/ghpypi/releases/download/v1.0.1/ghpypi-1.0.1-py3-none-any.whl",
+                    sha256="ae36bbabd6424037f716c6a78f907d6f9b058ab399a042b2c8530087beca9c3c",
+                    uploaded_at=datetime(2021, 12, 25, 6, 22, 19),
+                    uploaded_by="github-actions[bot]",
+                    name="ghpypi",
+                    version=packaging.version.Version("1.0.1"),
+                ),
+                Package(
+                    filename="ghpypi-1.0.1.tar.gz",
+                    url="https://github.com/paullockaby/ghpypi/releases/download/v1.0.1/ghpypi-1.0.1.tar.gz",
+                    sha256="0bca915a7d7129b4d5a21e5381fee0678016708139029c0c5ccadf71c0cf5265",
+                    uploaded_at=datetime(2021, 12, 25, 6, 22, 19),
+                    uploaded_by="github-actions[bot]",
+                    name="ghpypi",
+                    version=packaging.version.Version("1.0.1"),
+                ),
+                Package(
+                    filename="ghpypi-1.0.0-py3-none-any.whl",
+                    url="https://github.com/paullockaby/ghpypi/releases/download/v1.0.0/ghpypi-1.0.0-py3-none-any.whl",
+                    sha256="8db833603bd5f71a7ae2d94364edcc996dd851f42da0069040cab954be53d48d",
+                    uploaded_at=datetime(2021, 12, 25, 6, 16, 8),
+                    uploaded_by="github-actions[bot]",
+                    name="ghpypi",
+                    version=packaging.version.Version("1.0.0"),
+                ),
+                Package(
+                    filename="ghpypi-1.0.0.tar.gz",
+                    url="https://github.com/paullockaby/ghpypi/releases/download/v1.0.0/ghpypi-1.0.0.tar.gz",
+                    sha256="fa6dfbe92d7b150b788da980d53f07e6e84c4079118783d5905a72cc9b636ba3",
+                    uploaded_at=datetime(2021, 12, 25, 6, 16, 9),
+                    uploaded_by="github-actions[bot]",
+                    name="ghpypi",
+                    version=packaging.version.Version("1.0.0"),
+                ),
+            },
+        },
+    ),
+))
+def test_create_packages(artifacts, packages):
+    assert ghpypi.create_packages(artifacts) == packages
+
+
+@pytest.mark.parametrize("artifact", (
+    Artifact(
+        filename="",
+        url="http://example.com/org/repo/releases/download/xxx/foobar.whl",
+        sha256="1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        uploaded_at=datetime(2020, 1, 1, 0, 0, 0),
+        uploaded_by="github-actions[bot]",
+    ),
+    Artifact(
+        filename="lol",
+        url="http://example.com/org/repo/releases/download/xxx/foobar.whl",
+        sha256="1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        uploaded_at=datetime(2020, 1, 1, 0, 0, 0),
+        uploaded_by="github-actions[bot]",
+    ),
+    Artifact(
+        filename="lol-sup",
+        url="http://example.com/org/repo/releases/download/xxx/foobar.whl",
+        sha256="1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        uploaded_at=datetime(2020, 1, 1, 0, 0, 0),
+        uploaded_by="github-actions[bot]",
+    ),
+    Artifact(
+        filename="-20160920.193125.zip",
+        url="http://example.com/org/repo/releases/download/xxx/foobar.whl",
+        sha256="1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        uploaded_at=datetime(2020, 1, 1, 0, 0, 0),
+        uploaded_by="github-actions[bot]",
+    ),
+    Artifact(
+        filename=".",
+        url="http://example.com/org/repo/releases/download/xxx/foobar.whl",
+        sha256="1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        uploaded_at=datetime(2020, 1, 1, 0, 0, 0),
+        uploaded_by="github-actions[bot]",
+    ),
+    Artifact(
+        filename="..",
+        url="http://example.com/org/repo/releases/download/xxx/foobar.whl",
+        sha256="1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        uploaded_at=datetime(2020, 1, 1, 0, 0, 0),
+        uploaded_by="github-actions[bot]",
+    ),
+    Artifact(
+        filename="/blah-2.tar.gz",
+        url="http://example.com/org/repo/releases/download/xxx/foobar.whl",
+        sha256="1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        uploaded_at=datetime(2020, 1, 1, 0, 0, 0),
+        uploaded_by="github-actions[bot]",
+    ),
+    Artifact(
+        filename="lol-2.tar.gz/../",
+        url="http://example.com/org/repo/releases/download/xxx/foobar.whl",
+        sha256="1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        uploaded_at=datetime(2020, 1, 1, 0, 0, 0),
+        uploaded_by="github-actions[bot]",
+    ),
+))
+def test_create_packages_invalid(artifact):
+    with pytest.raises(ValueError):
+        ghpypi.create_package(artifact)
+
+
+def test_package_json():
+    test_packages = sorted([
+        Package(
+            filename="ghpypi-1.0.1-py3-none-any.whl",
+            url="https://github.com/paullockaby/ghpypi/releases/download/v1.0.1/ghpypi-1.0.1-py3-none-any.whl",
+            sha256="ae36bbabd6424037f716c6a78f907d6f9b058ab399a042b2c8530087beca9c3c",
+            uploaded_at=datetime(2021, 12, 25, 6, 22, 19),
+            uploaded_by="github-actions[bot]",
+            name="ghpypi",
+            version=packaging.version.Version("1.0.1"),
+        ),
+        Package(
+            filename="ghpypi-1.0.0.tar.gz",
+            url="https://github.com/paullockaby/ghpypi/releases/download/v1.0.0/ghpypi-1.0.0.tar.gz",
+            sha256="fa6dfbe92d7b150b788da980d53f07e6e84c4079118783d5905a72cc9b636ba3",
+            uploaded_at=datetime(2021, 12, 25, 6, 16, 9),
+            uploaded_by="github-actions[bot]",
+            name="ghpypi",
+            version=packaging.version.Version("1.0.0"),
+        ),
+    ])
+    package_json = ghpypi.get_package_json(test_packages)
+    assert package_json["info"] == {
+        "name": "ghpypi",
+        "version": "1.0.1",
+    }
+    assert package_json["urls"] == [
+        {
+            "digests": {"sha256": "ae36bbabd6424037f716c6a78f907d6f9b058ab399a042b2c8530087beca9c3c"},
+            "filename": "ghpypi-1.0.1-py3-none-any.whl",
+            "url": "https://github.com/paullockaby/ghpypi/releases/download/v1.0.1/ghpypi-1.0.1-py3-none-any.whl",
+        },
+    ]
+
+
+def test_strings():
+    test_packages = [
+        Package(
+            filename="ghpypi-1.0.1-py3-none-any.whl",
+            url="https://github.com/paullockaby/ghpypi/releases/download/v1.0.1/ghpypi-1.0.1-py3-none-any.whl",
+            sha256="ae36bbabd6424037f716c6a78f907d6f9b058ab399a042b2c8530087beca9c3c",
+            uploaded_at=datetime(2021, 12, 25, 6, 22, 19),
+            uploaded_by="github-actions[bot]",
+            name="ghpypi",
+            version=packaging.version.Version("1.0.1"),
+        ),
+        Package(
+            filename="ghpypi-1.0.0.tar.gz",
+            url="https://github.com/paullockaby/ghpypi/releases/download/v1.0.0/ghpypi-1.0.0.tar.gz",
+            sha256="fa6dfbe92d7b150b788da980d53f07e6e84c4079118783d5905a72cc9b636ba3",
+            uploaded_at=datetime(2021, 12, 25, 6, 16, 9),
+            uploaded_by="github-actions[bot]",
+            name="ghpypi",
+            version=packaging.version.Version("1.0.0"),
+        ),
+    ]
+    assert [str(x) for x in test_packages] == [
+        "1.0.1, 2021-12-25 06:22:19, github-actions[bot]",
+        "1.0.0, 2021-12-25 06:16:09, github-actions[bot]",
+    ]
+
+
+def test_sorting():
+    test_packages = [
+        ghpypi.create_package(ghpypi.Artifact(
+            filename=filename,
+            url="http://example.com/org/repo/releases/download/xxx/foobar.whl",
+            sha256="1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+            uploaded_at=datetime(2020, 1, 1, 0, 0, 0),
+            uploaded_by="github-actions[bot]",
+        ))
+        for filename in (
+            "fluffy-server-1.2.0.tar.gz",
+            "fluffy_server-1.1.0-py2.py3-none-any.whl",
+            "wsgi-mod-rpaf-2.0.0.tar.gz",
+            "fluffy-server-10.0.0.tar.gz",
+            "aspy.yaml-0.2.1.tar.gz",
+            "wsgi-mod-rpaf-1.0.1.tar.gz",
+            "aspy.yaml-0.2.1-py3-none-any.whl",
+            "fluffy-server-1.0.0.tar.gz",
+            "aspy.yaml-0.2.0-py2-none-any.whl",
+            "fluffy_server-10.0.0-py2.py3-none-any.whl",
+            "aspy.yaml-0.2.1-py2-none-any.whl",
+            "fluffy-server-1.1.0.tar.gz",
+            "fluffy_server-1.0.0-py2.py3-none-any.whl",
+            "fluffy_server-1.2.0-py2.py3-none-any.whl",
+        )
+    ]
+    sorted_names = [package.filename for package in sorted(test_packages)]
+    assert sorted_names == [
+        "aspy.yaml-0.2.0-py2-none-any.whl",
+        "aspy.yaml-0.2.1-py2-none-any.whl",
+        "aspy.yaml-0.2.1-py3-none-any.whl",
+        "aspy.yaml-0.2.1.tar.gz",
+        "fluffy_server-1.0.0-py2.py3-none-any.whl",
+        "fluffy-server-1.0.0.tar.gz",
+        "fluffy_server-1.1.0-py2.py3-none-any.whl",
+        "fluffy-server-1.1.0.tar.gz",
+        "fluffy_server-1.2.0-py2.py3-none-any.whl",
+        "fluffy-server-1.2.0.tar.gz",
+        "fluffy_server-10.0.0-py2.py3-none-any.whl",
+        "fluffy-server-10.0.0.tar.gz",
+        "wsgi-mod-rpaf-1.0.1.tar.gz",
+        "wsgi-mod-rpaf-2.0.0.tar.gz",
+    ]
+
+
+@responses.activate
+def test_create_artifacts_no_digest():
+    assets = [
+        {
+            "name": "foobar-1.0.1.txt",
+            "browser_download_url": "https://github.com/paullockaby/ghpypi/releases/download/v1.0.1/foobar-1.0.1.whl",
+            "updated_at": "2021-12-25T06:22:19Z",
+            "uploader": {"login": "github-actions[bot]"},
+        },
+        {
+            "name": "ghpypi-1.0.1-py3-none-any.whl",
+            "browser_download_url": "https://github.com/paullockaby/ghpypi/releases/download/v1.0.1/ghpypi-1.0.1-py3-none-any.whl",
+            "updated_at": "2021-12-25T06:22:19Z",
+            "uploader": {"login": "github-actions[bot]"},
+        },
+        {
+            "name": "ghpypi-1.0.1.tar.gz",
+            "browser_download_url": "https://github.com/paullockaby/ghpypi/releases/download/v1.0.1/ghpypi-1.0.1.tar.gz",
+            "updated_at": "2021-12-25T06:22:19Z",
+            "uploader": {"login": "github-actions[bot]"},
+        },
+    ]
+
+    # this is what all of our responses will contain
+    asset_data = b"this is an asset"
+    asset_digest = hashlib.sha256(asset_data).hexdigest()
+
+    for asset in assets:
+        responses.get(
+            asset["browser_download_url"],  # when we request this url
+            asset_data,                     # return this data
+        )
+
+    results = list(ghpypi.create_artifacts(assets))
+    assert results == [
+        ghpypi.Artifact(
+            filename="ghpypi-1.0.1-py3-none-any.whl",
+            url="https://github.com/paullockaby/ghpypi/releases/download/v1.0.1/ghpypi-1.0.1-py3-none-any.whl",
+            sha256=asset_digest,
+            uploaded_at=datetime(2021, 12, 25, 6, 22, 19),
+            uploaded_by="github-actions[bot]",
+        ),
+        ghpypi.Artifact(
+            filename="ghpypi-1.0.1.tar.gz",
+            url="https://github.com/paullockaby/ghpypi/releases/download/v1.0.1/ghpypi-1.0.1.tar.gz",
+            sha256=asset_digest,
+            uploaded_at=datetime(2021, 12, 25, 6, 22, 19),
+            uploaded_by="github-actions[bot]",
+        ),
+    ]
+
+
+@responses.activate
+def test_create_artifacts_digest():
+    assets = [
+        {
+            "name": "sha256sum.txt",
+            "browser_download_url": "https://github.com/paullockaby/ghpypi/releases/download/v1.0.1/sha256sum.txt",
+            "updated_at": "2021-12-25T06:22:19Z",
+            "uploader": {"login": "github-actions[bot]"},
+        },
+        {
+            "name": "ghpypi-1.0.1-py3-none-any.whl",
+            "browser_download_url": "https://github.com/paullockaby/ghpypi/releases/download/v1.0.1/ghpypi-1.0.1-py3-none-any.whl",
+            "updated_at": "2021-12-25T06:22:19Z",
+            "uploader": {"login": "github-actions[bot]"},
+        },
+        {
+            "name": "ghpypi-1.0.1.tar.gz",
+            "browser_download_url": "https://github.com/paullockaby/ghpypi/releases/download/v1.0.1/ghpypi-1.0.1.tar.gz",
+            "updated_at": "2021-12-25T06:22:19Z",
+            "uploader": {"login": "github-actions[bot]"},
+        },
+    ]
+
+    # this is what all of our responses will contain
+    asset_data = b"\n".join([
+        b"fa6dfbe92d7b150b788da980d53f07e6e84c4079118783d5905a72cc9b636ba3 ghpypi-1.0.1.tar.gz",
+        b"ae36bbabd6424037f716c6a78f907d6f9b058ab399a042b2c8530087beca9c3c ghpypi-1.0.1-py3-none-any.whl",
+    ])
+    responses.get("https://github.com/paullockaby/ghpypi/releases/download/v1.0.1/sha256sum.txt", asset_data)
+
+    results = list(ghpypi.create_artifacts(assets))
+    assert results == [
+        ghpypi.Artifact(
+            filename="ghpypi-1.0.1-py3-none-any.whl",
+            url="https://github.com/paullockaby/ghpypi/releases/download/v1.0.1/ghpypi-1.0.1-py3-none-any.whl",
+            sha256="ae36bbabd6424037f716c6a78f907d6f9b058ab399a042b2c8530087beca9c3c",
+            uploaded_at=datetime(2021, 12, 25, 6, 22, 19),
+            uploaded_by="github-actions[bot]",
+        ),
+        ghpypi.Artifact(
+            filename="ghpypi-1.0.1.tar.gz",
+            url="https://github.com/paullockaby/ghpypi/releases/download/v1.0.1/ghpypi-1.0.1.tar.gz",
+            sha256="fa6dfbe92d7b150b788da980d53f07e6e84c4079118783d5905a72cc9b636ba3",
+            uploaded_at=datetime(2021, 12, 25, 6, 22, 19),
+            uploaded_by="github-actions[bot]",
+        ),
+    ]

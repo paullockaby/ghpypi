@@ -60,7 +60,7 @@ def guess_name_version_from_filename(filename: str) -> Tuple[str, Optional[str]]
             parts = name.split("-")
             for i in range(len(parts) - 1, 0, -1):
                 part = parts[i]
-                if "." in part and re.search(r"[0-9]", part):
+                if "." in part and re.search(r"\d", part):
                     name, version = "-".join(parts[0:i]), "-".join(parts[i:])
 
     # possible with poorly-named files
@@ -75,7 +75,7 @@ class Repository(NamedTuple):
     name: str
 
 
-class Release(NamedTuple):
+class Artifact(NamedTuple):
     filename: str
     url: str
     sha256: str
@@ -90,7 +90,7 @@ class Package(NamedTuple):
     uploaded_at: datetime
     uploaded_by: str
 
-    # the above fields all come from release
+    # the above fields all come from the artifact
     # these fields get calculated by whatever creates us
     name: str
     version: Union[packaging.version.LegacyVersion, packaging.version.Version]
@@ -100,9 +100,6 @@ class Package(NamedTuple):
 
     def __lt__(self: Tuple[object, ...], other: Tuple[object, ...]) -> bool:
         return cast("Package", self).sort_key < cast("Package", other).sort_key
-
-    def __gt__(self: Tuple[object, ...], other: Tuple[object, ...]) -> bool:
-        return cast("Package", self).sort_key > cast("Package", other).sort_key
 
     @property
     def sort_key(self: "Package") -> Tuple[str, Union[packaging.version.LegacyVersion, packaging.version.Version], str]:
@@ -154,7 +151,7 @@ def build(packages: Dict[str, Set[Package]], output: str, title: str) -> None:
     )
     jinja_env.globals["title"] = title
 
-    # sorting package versions is actually pretty expensive so we do it once at the start
+    # sorting package versions is actually pretty expensive, so we do it once at the start
     sorted_packages = {name: sorted(files) for name, files in packages.items()}
 
     for package_name, sorted_files in sorted_packages.items():
@@ -195,33 +192,33 @@ def build(packages: Dict[str, Set[Package]], output: str, title: str) -> None:
         ))
 
 
-def create_package(release: Release) -> Package:
-    if not re.match(r"[a-zA-Z0-9_\-\.\+]+$", release.filename) or ".." in release.filename:
-        raise ValueError(f"unsafe package name: {release.filename}")
+def create_package(artifact: Artifact) -> Package:
+    if not re.match(r"[a-zA-Z\d_\-\.\+]+$", artifact.filename) or ".." in artifact.filename:
+        raise ValueError(f"unsafe package name: {artifact.filename}")
 
     # set values that the user did not provide
-    name, version = guess_name_version_from_filename(release.filename)
+    name, version = guess_name_version_from_filename(artifact.filename)
     name = packaging.utils.canonicalize_name(name)
 
     # parse the version to mutate it
     parsed_version = packaging.version.parse(version or "0")
 
     return Package(
-        filename=release.filename,
+        filename=artifact.filename,
         name=name,
         version=parsed_version,
-        url=release.url,
-        sha256=release.sha256,
-        uploaded_at=release.uploaded_at,
-        uploaded_by=release.uploaded_by,
+        url=artifact.url,
+        sha256=artifact.sha256,
+        uploaded_at=artifact.uploaded_at,
+        uploaded_by=artifact.uploaded_by,
     )
 
 
-def create_packages(releases: Iterator[Release]) -> Dict[str, Set[Package]]:
+def create_packages(artifacts: Iterator[Artifact]) -> Dict[str, Set[Package]]:
     packages: Dict[str, Set[Package]] = collections.defaultdict(set)
-    for release in releases:
+    for artifact in artifacts:
         try:
-            package = create_package(release)
+            package = create_package(artifact)
         except ValueError as e:
             logger.warning("%s (skipping package)", e)
         else:
@@ -273,8 +270,8 @@ def get_github_token(token: Optional[str], token_stdin: bool) -> str:
     raise ValueError("No value for GITHUB_TOKEN.")
 
 
-def get_releases(token: str, repository: Repository) -> Iterator[Release]:
-    logger.info("fetching releases for %s/%s", repository.owner, repository.name)
+def get_artifacts(token: str, repository: Repository) -> Iterator[Artifact]:
+    logger.info("fetching release artifacts for %s/%s", repository.owner, repository.name)
 
     gh = github.Github(token)
     gh_repo = gh.get_repo(f"{repository.owner}/{repository.name}")
@@ -282,73 +279,11 @@ def get_releases(token: str, repository: Repository) -> Iterator[Release]:
 
     for release in releases:
         assets = release.raw_data.get("assets") or []
-        yield from create_releases(assets)
+        yield from create_artifacts(assets)
 
 
-# the list of releases looks like this:
-# [{'browser_download_url': 'https://github.com/paullockaby/ghpypi/releases/download/v1.0.1/ghpypi-1.0.1-py3-none-any.whl',
-#   'content_type': 'raw',
-#   'created_at': '2021-12-25T06:22:18Z',
-#   'download_count': 1,
-#   'id': 52550362,
-#   'label': '',
-#   'name': 'ghpypi-1.0.1-py3-none-any.whl',
-#   'node_id': 'RA_kwDOGj9c4c4DIdra',
-#   'size': 12904,
-#   'state': 'uploaded',
-#   'updated_at': '2021-12-25T06:22:19Z',
-#   'uploader': {'avatar_url': 'https://avatars.githubusercontent.com/in/15368?v=4',
-#                'events_url': 'https://api.github.com/users/github-actions%5Bbot%5D/events{/privacy}',
-#                'followers_url': 'https://api.github.com/users/github-actions%5Bbot%5D/followers',
-#                'following_url': 'https://api.github.com/users/github-actions%5Bbot%5D/following{/other_user}',
-#                'gists_url': 'https://api.github.com/users/github-actions%5Bbot%5D/gists{/gist_id}',
-#                'gravatar_id': '',
-#                'html_url': 'https://github.com/apps/github-actions',
-#                'id': 41898282,
-#                'login': 'github-actions[bot]',
-#                'node_id': 'MDM6Qm90NDE4OTgyODI=',
-#                'organizations_url': 'https://api.github.com/users/github-actions%5Bbot%5D/orgs',
-#                'received_events_url': 'https://api.github.com/users/github-actions%5Bbot%5D/received_events',
-#                'repos_url': 'https://api.github.com/users/github-actions%5Bbot%5D/repos',
-#                'site_admin': False,
-#                'starred_url': 'https://api.github.com/users/github-actions%5Bbot%5D/starred{/owner}{/repo}',
-#                'subscriptions_url': 'https://api.github.com/users/github-actions%5Bbot%5D/subscriptions',
-#                'type': 'Bot',
-#                'url': 'https://api.github.com/users/github-actions%5Bbot%5D'},
-#   'url': 'https://api.github.com/repos/paullockaby/ghpypi/releases/assets/52550362'},
-#  {'browser_download_url': 'https://github.com/paullockaby/ghpypi/releases/download/v1.0.1/ghpypi-1.0.1.tar.gz',
-#   'content_type': 'raw',
-#   'created_at': '2021-12-25T06:22:19Z',
-#   'download_count': 1,
-#   'id': 52550363,
-#   'label': '',
-#   'name': 'ghpypi-1.0.1.tar.gz',
-#   'node_id': 'RA_kwDOGj9c4c4DIdrb',
-#   'size': 11402,
-#   'state': 'uploaded',
-#   'updated_at': '2021-12-25T06:22:19Z',
-#   'uploader': {'avatar_url': 'https://avatars.githubusercontent.com/in/15368?v=4',
-#                'events_url': 'https://api.github.com/users/github-actions%5Bbot%5D/events{/privacy}',
-#                'followers_url': 'https://api.github.com/users/github-actions%5Bbot%5D/followers',
-#                'following_url': 'https://api.github.com/users/github-actions%5Bbot%5D/following{/other_user}',
-#                'gists_url': 'https://api.github.com/users/github-actions%5Bbot%5D/gists{/gist_id}',
-#                'gravatar_id': '',
-#                'html_url': 'https://github.com/apps/github-actions',
-#                'id': 41898282,
-#                'login': 'github-actions[bot]',
-#                'node_id': 'MDM6Qm90NDE4OTgyODI=',
-#                'organizations_url': 'https://api.github.com/users/github-actions%5Bbot%5D/orgs',
-#                'received_events_url': 'https://api.github.com/users/github-actions%5Bbot%5D/received_events',
-#                'repos_url': 'https://api.github.com/users/github-actions%5Bbot%5D/repos',
-#                'site_admin': False,
-#                'starred_url': 'https://api.github.com/users/github-actions%5Bbot%5D/starred{/owner}{/repo}',
-#                'subscriptions_url': 'https://api.github.com/users/github-actions%5Bbot%5D/subscriptions',
-#                'type': 'Bot',
-#                'url': 'https://api.github.com/users/github-actions%5Bbot%5D'},
-#   'url': 'https://api.github.com/repos/paullockaby/ghpypi/releases/assets/52550363'}]
-
-def create_releases(releases: list[dict]) -> Iterator[Release]:
-    if len(releases) == 0:
+def create_artifacts(assets: list[dict]) -> Iterator[Artifact]:
+    if len(assets) == 0:
         return
 
     # keep track of all the assets that we've found
@@ -357,9 +292,9 @@ def create_releases(releases: list[dict]) -> Iterator[Release]:
     # keep track of any sha256 sums that we find
     sha256sums = {}
 
-    for release in releases:
-        name = release["name"]
-        url = release["browser_download_url"]
+    for asset in assets:
+        name = asset["name"]
+        url = asset["browser_download_url"]
 
         # we only want wheels and tar.gz and maybe pre-existing checksums
         if not (name.endswith(".whl") or name.endswith(".gz") or name.endswith(".bz2") or name == "sha256sum.txt"):
@@ -380,14 +315,15 @@ def create_releases(releases: list[dict]) -> Iterator[Release]:
                 "filename": name,
                 "url": url,
                 "sha256": None,
-                "uploaded_at": datetime.fromisoformat(release["updated_at"].rstrip("Z")),
-                "uploaded_by": release["uploader"]["login"],
+                "uploaded_at": datetime.fromisoformat(asset["updated_at"].rstrip("Z")),
+                "uploaded_by": asset["uploader"]["login"],
             })
 
     for result in results:
         if result["filename"] in sha256sums:
             # found the hash, just add it to the file
-            result["sha256"] = sha256sums[result["filename"]]
+            if result["filename"] in sha256sums:
+                result["sha256"] = sha256sums[result["filename"]]
         else:
             # for any file that doesn't have a sha256 hash, download the file and calculate it
             response = requests.get(result["url"], stream=True)
@@ -401,14 +337,14 @@ def create_releases(releases: list[dict]) -> Iterator[Release]:
 
             result["sha256"] = hasher.hexdigest()
 
-        yield Release(**result)
+        yield Artifact(**result)
 
 
 def run(repositories: str, output: str, token: str, token_stdin: bool, title: Optional[str] = None) -> None:
     packages = {}
     token = get_github_token(token, token_stdin)
     for repository in load_repositories(repositories):
-        packages.update(create_packages(get_releases(token, repository)))
+        packages.update(create_packages(get_artifacts(token, repository)))
 
     # set a default title
     if title is None:
