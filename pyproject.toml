@@ -38,7 +38,7 @@ flake8-simplify = "^0.19.2"
 pep8-naming = "^0.12.1"
 types-requests = "^2.27.26"
 types-atomicwrites = "^1.4.5"
-responses = "^0.20.0"
+responses = "^0.21.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
