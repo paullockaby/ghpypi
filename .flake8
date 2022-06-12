@@ -9,6 +9,7 @@ ignore =
     PLC0115
     PLC0116
     PLC0301
+    PLR0911
 per-file-ignores =
     tests/*:S101,B011,ANN
 exclude =
