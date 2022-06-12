@@ -10,10 +10,9 @@ build:
 .PHONY: test
 test:
 	poetry install --no-interaction
-	poetry run pytest
+	poetry run pytest --flake8 --mypy --cov=src --cov-report=term --cov-report=html --log-level=ERROR -p no:warnings
 
 .PHONY: clean
 clean:
-	rm -rf dist/
-	rm -rf .pytest_cache/
+	rm -rf dist/ .pytest_cache/ .mypy_cache/ .coverage htmlcov/
 	find . -type d -name "__pycache__" -print0 | xargs -0 rm -rf
