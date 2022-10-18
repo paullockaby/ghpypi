@@ -9,7 +9,6 @@ build:
 
 .PHONY: install
 install:
-	pre-commit install
 	poetry install --no-interaction
 
 .PHONY: test
@@ -18,7 +17,7 @@ test: install
 
 .PHONY: pre-commit
 pre-commit: install
-	pre-commit run --all-files
+	poetry run pre-commit run --all-files
 
 .PHONY: clean
 clean:
