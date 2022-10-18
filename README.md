@@ -87,7 +87,7 @@ If you want to trigger a rebuild of the PyPI repository index when another GitHu
       # leave this exactly as it is -- the values get replaced automatically
       route: POST /repos/{owner}/{repo}/actions/workflows/{workflow}/dispatches
 
-      # change this to be the name of the organization where your GitHub Pages PyPI repository exists 
+      # change this to be the name of the organization where your GitHub Pages PyPI repository exists
       owner: myorg
 
       # change this to be the name of the GitHub repository referenced above
@@ -114,9 +114,26 @@ name = "ghpypi"
 url = "https://myorg.github.io/ghpypi/simple/"
 ```
 
-## TODO
+## Development
 
-This project needs some tests.
+In order to do development on this repository you must have [poetry](https://python-poetry.org/) and [pre-commit](https://pre-commit.com/) installed. For example, if you have Homebrew installed you can run this command:
+
+```commandline
+brew install poetry pre-commit
+```
+
+After installing these, clone this project and run this commands:
+
+```commandline
+make install
+```
+
+Running that will install the pre-commit hook and set up your poetry environment. Now you can begin development. Some common development commands:
+
+```commandline
+make test  # run all tests, perform static typing checks, and generate a coverage report
+make pre-commit  # run pre-commit hooks (i.e. black, isort, and flake8) before committing
+```
 
 ## Credits
 

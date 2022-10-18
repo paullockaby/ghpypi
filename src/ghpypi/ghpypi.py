@@ -7,8 +7,18 @@ import os.path
 import re
 import sys
 from datetime import datetime
-from typing import (Any, Dict, Iterator, List, NamedTuple, Optional, Set,
-                    Tuple, Union, cast)
+from typing import (
+    Any,
+    Dict,
+    Iterator,
+    List,
+    NamedTuple,
+    Optional,
+    Set,
+    Tuple,
+    Union,
+    cast,
+)
 
 import distlib.wheel  # type: ignore
 import github
@@ -102,12 +112,17 @@ class Package(NamedTuple):
         return cast("Package", self).sort_key < cast("Package", other).sort_key
 
     @property
-    def sort_key(self: "Package") -> Tuple[str, Union[packaging.version.LegacyVersion, packaging.version.Version], str]:
+    def sort_key(
+        self: "Package",
+    ) -> Tuple[
+        str,
+        Union[packaging.version.LegacyVersion, packaging.version.Version],
+        str,
+    ]:
         """Sort key for a file name."""
         return (
             self.name,
             self.version,
-
             # This looks ridiculous, but it's so that like extensions sort
             # together when the name and version are the same (otherwise it
             # depends on how the file name is normalized, which means sometimes
@@ -125,11 +140,13 @@ def get_package_json(files: List[Package]) -> Dict[str, Any]:
 
     latest = files[-1]
     for f in files:
-        by_version[str(f.version)].append({
-            "filename": f.filename,
-            "url": f.url,
-            "digests": {"sha256": f.sha256},
-        })
+        by_version[str(f.version)].append(
+            {
+                "filename": f.filename,
+                "url": f.url,
+                "digests": {"sha256": f.sha256},
+            },
+        )
 
     return {
         "info": {
@@ -160,11 +177,16 @@ def build(packages: Dict[str, Set[Package]], output: str, title: str) -> None:
         # /simple/{package}/index.html
         simple_package_dir = os.path.join(simple, package_name)
         os.makedirs(simple_package_dir, exist_ok=True)
-        with atomic_write(os.path.join(simple_package_dir, "index.html"), overwrite=True) as f:
-            f.write(jinja_env.get_template("package.html").render(
-                package_name=package_name,
-                files=sorted_files,
-            ))
+        with atomic_write(
+            os.path.join(simple_package_dir, "index.html"),
+            overwrite=True,
+        ) as f:
+            f.write(
+                jinja_env.get_template("package.html").render(
+                    package_name=package_name,
+                    files=sorted_files,
+                ),
+            )
 
         # /pypi/{package}/json
         pypi_package_dir = os.path.join(pypi, package_name)
@@ -175,25 +197,32 @@ def build(packages: Dict[str, Set[Package]], output: str, title: str) -> None:
     # /simple/index.html
     os.makedirs(simple, exist_ok=True)
     with atomic_write(os.path.join(simple, "index.html"), overwrite=True) as f:
-        f.write(jinja_env.get_template("simple.html").render(
-            package_names=sorted_packages,
-        ))
+        f.write(
+            jinja_env.get_template("simple.html").render(
+                package_names=sorted_packages,
+            ),
+        )
 
     # /index.html
     with atomic_write(os.path.join(output, "index.html"), overwrite=True) as f:
-        f.write(jinja_env.get_template("index.html").render(
-            packages=sorted(
-                (
-                    package,
-                    sorted_versions[-1].version,
-                )
-                for package, sorted_versions in sorted_packages.items()
+        f.write(
+            jinja_env.get_template("index.html").render(
+                packages=sorted(
+                    (
+                        package,
+                        sorted_versions[-1].version,
+                    )
+                    for package, sorted_versions in sorted_packages.items()
+                ),
             ),
-        ))
+        )
 
 
 def create_package(artifact: Artifact) -> Package:
-    if not re.match(r"[a-zA-Z\d_\-\.\+]+$", artifact.filename) or ".." in artifact.filename:
+    if (
+        not re.match(r"[a-zA-Z\d_\-\.\+]+$", artifact.filename)
+        or ".." in artifact.filename
+    ):
         raise ValueError(f"unsafe package name: {artifact.filename}")
 
     # set values that the user did not provide
@@ -271,7 +300,11 @@ def get_github_token(token: Optional[str], token_stdin: bool) -> str:
 
 
 def get_artifacts(token: str, repository: Repository) -> Iterator[Artifact]:
-    logger.info("fetching release artifacts for %s/%s", repository.owner, repository.name)
+    logger.info(
+        "fetching release artifacts for %s/%s",
+        repository.owner,
+        repository.name,
+    )
 
     gh = github.Github(token)
     gh_repo = gh.get_repo(f"{repository.owner}/{repository.name}")
@@ -297,7 +330,12 @@ def create_artifacts(assets: list[dict]) -> Iterator[Artifact]:
         url = asset["browser_download_url"]
 
         # we only want wheels and tar.gz and maybe pre-existing checksums
-        if not (name.endswith(".whl") or name.endswith(".gz") or name.endswith(".bz2") or name == "sha256sum.txt"):
+        if not (
+            name.endswith(".whl")
+            or name.endswith(".gz")
+            or name.endswith(".bz2")
+            or name == "sha256sum.txt"
+        ):
             continue
 
         if name == "sha256sum.txt":
@@ -308,16 +346,27 @@ def create_artifacts(assets: list[dict]) -> Iterator[Artifact]:
             response.encoding = "ascii"
 
             # split lines then split each line
-            sha256sums = {x[1]: x[0] for x in [line.strip().split() for line in response.text.split("\n") if len(line.strip())]}
+            sha256sums = {
+                x[1]: x[0]
+                for x in [
+                    line.strip().split()
+                    for line in response.text.split("\n")
+                    if len(line.strip())
+                ]
+            }
 
         else:
-            results.append({
-                "filename": name,
-                "url": url,
-                "sha256": None,
-                "uploaded_at": datetime.fromisoformat(asset["updated_at"].rstrip("Z")),
-                "uploaded_by": asset["uploader"]["login"],
-            })
+            results.append(
+                {
+                    "filename": name,
+                    "url": url,
+                    "sha256": None,
+                    "uploaded_at": datetime.fromisoformat(
+                        asset["updated_at"].rstrip("Z"),
+                    ),
+                    "uploaded_by": asset["uploader"]["login"],
+                },
+            )
 
     for result in results:
         if result["filename"] in sha256sums:
@@ -340,7 +389,13 @@ def create_artifacts(assets: list[dict]) -> Iterator[Artifact]:
         yield Artifact(**result)
 
 
-def run(repositories: str, output: str, token: str, token_stdin: bool, title: Optional[str] = None) -> None:
+def run(
+    repositories: str,
+    output: str,
+    token: str,
+    token_stdin: bool,
+    title: Optional[str] = None,
+) -> None:
     packages = {}
     token = get_github_token(token, token_stdin)
     for repository in load_repositories(repositories):
