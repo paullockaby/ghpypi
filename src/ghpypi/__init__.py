@@ -39,7 +39,8 @@ def parse_arguments(arguments: List[str]) -> argparse.Namespace:
     )
     parser.add_argument(
         "--title",
-        help="site title (for web interface)", default="My Private PyPI",
+        help="site title (for web interface)",
+        default="My Private PyPI",
     )
     parser.add_argument(
         "-v",
