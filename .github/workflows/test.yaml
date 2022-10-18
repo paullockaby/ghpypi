@@ -21,15 +21,26 @@ jobs:
         with:
           python-version: "3.10.x"
 
-      - name: linter
-        uses: pre-commit/action@v3.0.0
+      - uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
-      - name: build
+      - name: setup poetry and pre-commit
         run: |
           pip install poetry
-          poetry config virtualenvs.in-project true
-          poetry install --no-ansi --no-interaction
 
-      - name: tests
+      - name: setup application
+        run: |
+          poetry config virtualenvs.in-project true
+          poetry install --no-interaction
+
+      - name: run tests
         run: |
           poetry run pytest --mypy
+
+      - name: run linter
+        run: |
+          poetry run pre-commit run flake8 --all-files

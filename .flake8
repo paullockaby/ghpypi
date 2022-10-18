@@ -1,17 +1,7 @@
 [flake8]
 inline-quotes = double
-ignore =
+extend-ignore =
     E501
-    W503
-    PLC0103
-    PLC0111
-    PLC0112
-    PLC0114
-    PLC0115
-    PLC0116
-    PLC0301
-    PLR0911
-    PLE0401
 per-file-ignores =
     tests/*:S101,B011,ANN
 exclude =
