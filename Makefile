@@ -7,10 +7,18 @@ all: build
 build:
 	@echo "Nothing to build. Try 'test' instead."
 
-.PHONY: test
-test:
+.PHONY: install
+install:
+	pre-commit install
 	poetry install --no-interaction
-	poetry run pytest --flake8 --mypy --cov=src --cov-report=term --cov-report=html --log-level=ERROR -p no:warnings
+
+.PHONY: test
+test: install
+	poetry run pytest --mypy --cov=src --cov-report=term --cov-report=html
+
+.PHONY: pre-commit
+pre-commit: install
+	pre-commit run --all-files
 
 .PHONY: clean
 clean:

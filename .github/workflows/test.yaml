@@ -12,10 +12,6 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
-    if: >
-      !contains(github.event.head_commit.message, 'ci skip') &&
-      !contains(github.event.pull_request.title, 'ci skip')
-
     steps:
       - name: checkout
         uses: actions/checkout@v3
@@ -25,16 +21,17 @@ jobs:
         with:
           python-version: "3.10.x"
 
+      - name: linter
+        uses: pre-commit/action@v3.0.0
+        with:
+          extra_args: flake8 --all-files
+
       - name: build
         run: |
           pip install poetry
           poetry config virtualenvs.in-project true
-          poetry config virtualenvs.create true
           poetry install --no-ansi --no-interaction
 
-      - name: test
+      - name: tests
         run: |
-          poetry run pytest
-          poetry run pytest --isort
           poetry run pytest --mypy
-          poetry run pytest --flake8
