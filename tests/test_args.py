@@ -27,7 +27,7 @@ def test_valid_values():
             "/path/to/output",
             "--repositories",
             "/path/to/repos.txt",
-        ]
+        ],
     )
     assert not x.verbose
     assert x.title == "My Private PyPI"
@@ -44,7 +44,7 @@ def test_valid_values():
             "/path/to/output",
             "--repositories",
             "/path/to/repos.txt",
-        ]
+        ],
     )
     assert not x.verbose
     assert x.title == "My Private PyPI"

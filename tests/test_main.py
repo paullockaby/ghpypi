@@ -89,7 +89,9 @@ def test_guess_name_version_from_filename(file_name: str, name: str, version: st
     ),
 )
 def test_guess_name_version_from_filename_only_name(
-    file_name: str, name: str, version: str
+    file_name: str,
+    name: str,
+    version: str,
 ):
     """Broken version check tests.
     The real important thing is to be able to parse the name, but it's nice if
@@ -122,10 +124,12 @@ def test_load_repositories(tmp_path: PosixPath):
     tmp_data.write_text(
         """
 
+        # below this is a blank line
+
         # this is a comment
         foo/bar
         baz/bat
-    """
+    """,
     )
 
     tmp_data_path = str(tmp_data)
@@ -235,7 +239,7 @@ def test_get_artifacts(mocker: MockerFixture):
         spec=github.Repository.Repository,
         **{
             "get_releases.return_value": [],
-        }
+        },
     )
     mocker.patch("github.MainClass.Github.get_repo", return_value=mock_get_repo)
     releases = list(ghpypi.get_artifacts(token, repository))
@@ -254,10 +258,10 @@ def test_get_artifacts(mocker: MockerFixture):
                     spec=github.GitRelease.GitRelease,
                     **{
                         "raw_data": {},
-                    }
+                    },
                 ),
             ],
-        }
+        },
     )
     mocker.patch("github.MainClass.Github.get_repo", return_value=mock_get_repo)
     releases = list(ghpypi.get_artifacts(token, repository))
@@ -274,10 +278,10 @@ def test_get_artifacts(mocker: MockerFixture):
                     spec=github.GitRelease.GitRelease,
                     **{
                         "raw_data": {"assets": []},
-                    }
+                    },
                 ),
             ],
-        }
+        },
     )
     mocker.patch("github.MainClass.Github.get_repo", return_value=mock_get_repo)
     releases = list(ghpypi.get_artifacts(token, repository))
@@ -513,7 +517,7 @@ def test_package_json():
                 name="ghpypi",
                 version=packaging.version.Version("1.0.0"),
             ),
-        ]
+        ],
     )
     package_json = ghpypi.get_package_json(test_packages)
     assert package_json["info"] == {
@@ -523,7 +527,7 @@ def test_package_json():
     assert package_json["urls"] == [
         {
             "digests": {
-                "sha256": "ae36bbabd6424037f716c6a78f907d6f9b058ab399a042b2c8530087beca9c3c"
+                "sha256": "ae36bbabd6424037f716c6a78f907d6f9b058ab399a042b2c8530087beca9c3c",
             },
             "filename": "ghpypi-1.0.1-py3-none-any.whl",
             "url": "https://github.com/paullockaby/ghpypi/releases/download/v1.0.1/ghpypi-1.0.1-py3-none-any.whl",
@@ -567,7 +571,7 @@ def test_sorting():
                 sha256="1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
                 uploaded_at=datetime(2020, 1, 1, 0, 0, 0),
                 uploaded_by="github-actions[bot]",
-            )
+            ),
         )
         for filename in (
             "fluffy-server-1.2.0.tar.gz",
@@ -685,7 +689,7 @@ def test_create_artifacts_digest():
         [
             b"fa6dfbe92d7b150b788da980d53f07e6e84c4079118783d5905a72cc9b636ba3 ghpypi-1.0.1.tar.gz",
             b"ae36bbabd6424037f716c6a78f907d6f9b058ab399a042b2c8530087beca9c3c ghpypi-1.0.1-py3-none-any.whl",
-        ]
+        ],
     )
     responses.get(
         "https://github.com/paullockaby/ghpypi/releases/download/v1.0.1/sha256sum.txt",

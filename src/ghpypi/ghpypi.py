@@ -115,7 +115,9 @@ class Package(NamedTuple):
     def sort_key(
         self: "Package",
     ) -> Tuple[
-        str, Union[packaging.version.LegacyVersion, packaging.version.Version], str
+        str,
+        Union[packaging.version.LegacyVersion, packaging.version.Version],
+        str,
     ]:
         """Sort key for a file name."""
         return (
@@ -143,7 +145,7 @@ def get_package_json(files: List[Package]) -> Dict[str, Any]:
                 "filename": f.filename,
                 "url": f.url,
                 "digests": {"sha256": f.sha256},
-            }
+            },
         )
 
     return {
@@ -176,13 +178,14 @@ def build(packages: Dict[str, Set[Package]], output: str, title: str) -> None:
         simple_package_dir = os.path.join(simple, package_name)
         os.makedirs(simple_package_dir, exist_ok=True)
         with atomic_write(
-            os.path.join(simple_package_dir, "index.html"), overwrite=True
+            os.path.join(simple_package_dir, "index.html"),
+            overwrite=True,
         ) as f:
             f.write(
                 jinja_env.get_template("package.html").render(
                     package_name=package_name,
                     files=sorted_files,
-                )
+                ),
             )
 
         # /pypi/{package}/json
@@ -197,7 +200,7 @@ def build(packages: Dict[str, Set[Package]], output: str, title: str) -> None:
         f.write(
             jinja_env.get_template("simple.html").render(
                 package_names=sorted_packages,
-            )
+            ),
         )
 
     # /index.html
@@ -211,7 +214,7 @@ def build(packages: Dict[str, Set[Package]], output: str, title: str) -> None:
                     )
                     for package, sorted_versions in sorted_packages.items()
                 ),
-            )
+            ),
         )
 
 
@@ -298,7 +301,9 @@ def get_github_token(token: Optional[str], token_stdin: bool) -> str:
 
 def get_artifacts(token: str, repository: Repository) -> Iterator[Artifact]:
     logger.info(
-        "fetching release artifacts for %s/%s", repository.owner, repository.name
+        "fetching release artifacts for %s/%s",
+        repository.owner,
+        repository.name,
     )
 
     gh = github.Github(token)
@@ -357,10 +362,10 @@ def create_artifacts(assets: list[dict]) -> Iterator[Artifact]:
                     "url": url,
                     "sha256": None,
                     "uploaded_at": datetime.fromisoformat(
-                        asset["updated_at"].rstrip("Z")
+                        asset["updated_at"].rstrip("Z"),
                     ),
                     "uploaded_by": asset["uploader"]["login"],
-                }
+                },
             )
 
     for result in results:
