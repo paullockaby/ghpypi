@@ -1,5 +1,5 @@
 # ghpypi
-A Python package index generator for GitHub using GitHub Pages. This looks at the list of releases on a GitHub repository and generates HTML out of it that can then be served up with GitHub Pages and used by pip to install your libraries.
+A Python package index generator for releases on GitHub that uses GitHub Pages. This looks at the list of releases on one or more GitHub repositories and generates HTML out of it that can then be served up with GitHub Pages and used by pip to install your libraries.
 
 ## What is this?
 
@@ -8,15 +8,16 @@ This repository is a combination of two parts:
 1. It is a PyPI repository for tools that created by this organization.
 2. It is a project that can be used to generate your own PyPI repository using GitHub Pages.
 
-How is this different from other static pypI index generators? This one takes a list of GitHub repositories, uses the GitHub API to get a list of releases for those repositories, and then makes static pages that deploy well with GitHub Pages.
+How is this different from other static PyPI index generators? This one takes a list of GitHub repositories, uses the GitHub API to get a list of releases for those repositories, and then makes static pages that deploy well with GitHub Pages.
 
 ## Getting Started
 
 To get started we are going to:
 
-1. Create a list of GitHub repositories that contain releases that we want to index into our new PyPI repository.
-2. Run the initial static page generation.
-3. Automate static page generation for new releases.
+1. Generate a GitHub token with the `repo` permissions.
+2. Create a list of GitHub repositories that contain releases that we want to index into our new PyPI repository.
+3. Run the initial static page generation.
+4. Automate static page generation for new releases.
 
 ### Make a Copy of This Repository
 
@@ -30,9 +31,13 @@ Next, create a file in the root of this GitHub repository. The file should be ca
 
 In the above example we have exactly one GitHub repository called `ghpypi` and it is under the `paullockaby` owner.
 
+This tool uses Poetry run so you may need to install Poetry and then set up Poetry, like this:
+
+    $ peotry install
+
 Once the file has been created, invoke the script:
 
-    $ echo $GITHUB_TOKEN | ghpypi --output docs --repositories repositories.txt --token-stdin
+    $ echo $GITHUB_TOKEN | poetry run ghpypi --output docs --repositories repositories.txt --token-stdin
 
 The newly built static index can now be found under `docs` and you can use [GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/creating-a-github-pages-site) to share the `docs` directory.
 
@@ -102,7 +107,7 @@ If you want to trigger a rebuild of the PyPI repository index when another GitHu
       GITHUB_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}
 ```
 
-The `WORKFLOW_TOKEN` is a personal access token that is granted admin rights to GitHub repositories in your organization. You cannot use the regular `GITHUB_TOKEN` secret provided by the GitHub Actions runner because GitHub does not want you to inadvertently create circular actions. (You can _purposely_ create circular actions, though!)
+The `WORKFLOW_TOKEN` is a personal access token that is granted `repo` rights to GitHub repositories in your organization. You cannot use the regular `GITHUB_TOKEN` secret provided by the GitHub Actions runner because GitHub does not want you to inadvertently create circular actions. (You can _purposely_ create circular actions, though!)
 
 ### Using your deployed index server with pip (or poetry)
 
