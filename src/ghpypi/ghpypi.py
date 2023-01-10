@@ -7,18 +7,7 @@ import os.path
 import re
 import sys
 from datetime import datetime
-from typing import (
-    Any,
-    Dict,
-    Iterator,
-    List,
-    NamedTuple,
-    Optional,
-    Set,
-    Tuple,
-    Union,
-    cast,
-)
+from typing import Any, Dict, Iterator, List, NamedTuple, Optional, Set, Tuple, cast
 
 import distlib.wheel  # type: ignore
 import github
@@ -103,7 +92,7 @@ class Package(NamedTuple):
     # the above fields all come from the artifact
     # these fields get calculated by whatever creates us
     name: str
-    version: Union[packaging.version.LegacyVersion, packaging.version.Version]
+    version: packaging.version.Version
 
     def __str__(self: "Package") -> str:
         return f"{self.version}, {self.uploaded_at.strftime('%Y-%m-%d %H:%M:%S')}, {self.uploaded_by}"
@@ -114,11 +103,7 @@ class Package(NamedTuple):
     @property
     def sort_key(
         self: "Package",
-    ) -> Tuple[
-        str,
-        Union[packaging.version.LegacyVersion, packaging.version.Version],
-        str,
-    ]:
+    ) -> Tuple[str, packaging.version.Version, str]:
         """Sort key for a file name."""
         return (
             self.name,
