@@ -25,7 +25,7 @@ pytest-mypy = "^0.10.3"
 pre-commit = "^3.0.4"
 
 # mypy dependencies
-types-requests = "^2.28.11.12"
+types-requests = "^2.28.11.13"
 types-atomicwrites = "^1.4.5.1"
 responses = "^0.22.0"
 
