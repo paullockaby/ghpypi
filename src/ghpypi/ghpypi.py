@@ -324,7 +324,7 @@ def create_artifacts(assets: list[dict]) -> Iterator[Artifact]:
             continue
 
         if name == "sha256sum.txt":
-            response = requests.get(url)
+            response = requests.get(url, timeout=10)
             response.raise_for_status()  # we only expect 200 responses
 
             # set the encoding to ascii so that we don't make the system guess
@@ -360,7 +360,7 @@ def create_artifacts(assets: list[dict]) -> Iterator[Artifact]:
                 result["sha256"] = sha256sums[result["filename"]]
         else:
             # for any file that doesn't have a sha256 hash, download the file and calculate it
-            response = requests.get(result["url"], stream=True)
+            response = requests.get(result["url"], stream=True, timeout=30)
             response.raise_for_status()  # we only expect 200 responses
 
             # expecting a binary response
