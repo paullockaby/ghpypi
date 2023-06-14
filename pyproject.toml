@@ -22,7 +22,7 @@ pytest = "^7.3.2"
 pytest-cov = "^4.1.0"
 pytest-mock = "^3.10.0"
 pytest-mypy = "^0.10.3"
-pre-commit = "^3.3.2"
+pre-commit = "^3.3.3"
 
 # mypy dependencies
 types-requests = "^2.30.0.1"
