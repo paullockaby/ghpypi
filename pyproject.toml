@@ -10,7 +10,7 @@ ghpypi = "ghpypi:main"
 
 [tool.poetry.dependencies]
 python = "^3.8"
-PyGithub = "^1.58.2"
+PyGithub = "^1.59.0"
 distlib = "^0.3.6"
 Jinja2 = "^3.1.2"
 packaging = "^23.1"
@@ -18,9 +18,9 @@ atomicwrites = "^1.4.1"
 requests = "^2.31.0"
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^7.3.2"
+pytest = "^7.4.0"
 pytest-cov = "^4.1.0"
-pytest-mock = "^3.10.0"
+pytest-mock = "^3.11.1"
 pytest-mypy = "^0.10.3"
 pre-commit = "^3.3.3"
 
