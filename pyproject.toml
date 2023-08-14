@@ -10,7 +10,7 @@ ghpypi = "ghpypi:main"
 
 [tool.poetry.dependencies]
 python = "^3.8"
-PyGithub = "^1.59.0"
+PyGithub = "^1.59.1"
 distlib = "^0.3.7"
 Jinja2 = "^3.1.2"
 packaging = "^23.1"
@@ -27,7 +27,7 @@ pre-commit = "^3.3.3"
 # mypy dependencies
 types-requests = "^2.30.0.2"
 types-atomicwrites = "^1.4.5.1"
-responses = "^0.23.1"
+responses = "^0.23.3"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
