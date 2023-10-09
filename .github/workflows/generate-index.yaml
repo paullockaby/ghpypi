@@ -30,6 +30,6 @@ jobs:
           poetry install --no-ansi --no-interaction --without=dev
           poetry run ghpypi --output=docs --repositories=repositories.txt --token=${{ secrets.GITHUB_TOKEN }}
 
-      - uses: stefanzweifel/git-auto-commit-action@v4
+      - uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: automatic index update [skip ci]
