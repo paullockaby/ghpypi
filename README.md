@@ -33,7 +33,7 @@ In the above example we have exactly one GitHub repository called `ghpypi` and i
 
 This tool uses Poetry run so you may need to install Poetry and then set up Poetry, like this:
 
-    $ peotry install
+    $ poetry install
 
 Once the file has been created, invoke the script:
 
