@@ -95,7 +95,7 @@ class Package(NamedTuple):
     version: packaging.version.Version
 
     def __str__(self: "Package") -> str:
-        return f"{self.version}, {self.uploaded_at.strftime('%Y-%m-%d %H:%M:%S')}, {self.uploaded_by}"
+        return f"{self.version}, {self.uploaded_at.strftime('%Y-%m-%d %H:%M:%S')}, {self.uploaded_by}"  # noqa Q000
 
     def __lt__(self: Tuple[object, ...], other: Tuple[object, ...]) -> bool:
         return cast("Package", self).sort_key < cast("Package", other).sort_key
