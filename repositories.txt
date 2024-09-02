@@ -1,1 +1,2 @@
 paullockaby/ghpypi
+paullockaby/test-repo
