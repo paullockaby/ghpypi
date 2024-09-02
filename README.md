@@ -129,6 +129,7 @@ jobs:
 
       - name: Push pages updates
         run: |
+          git add ./docs
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
           git commit -am "chore: automatic index update [skip ci]"
