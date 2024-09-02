@@ -77,16 +77,16 @@ The newly built static index can now be found under `docs` and you can use [GitH
 You might want to put this whole thing into some sort of cron job to rebuild on a regular basis. We can use GitHub Actions to accomplish that. Create a GitHub Actions workflow in your GitHub repository. Call it `.github/workflows/generate-index.yaml` and make it look like this:
 
 ```yaml
-name: Generate Index
+name: Upload GitHub Pages
 
 on:
-  # allow manual triggers
+  # allow triggering manually
   workflow_dispatch:
 
   # allow programmatic triggers
   repository_dispatch:
 
-  # run every night at midnight UTC
+  # run every night at 12am, UTC
   schedule:
     - cron: "0 0 * * *"
 
@@ -127,9 +127,10 @@ jobs:
           poetry install --no-interaction
           poetry run ghpypi --output=docs --repositories=repositories.txt --token=${{ secrets.GITHUB_TOKEN }}
 
-      - name: Push pypi changes
+      - name: Push pages updates
         run: |
-          git push origin main --tags
+          git commit -am "chore: automatic index update [skip ci]"
+          git push origin main
 
       - name: Upload site
         uses: actions/upload-pages-artifact@v3

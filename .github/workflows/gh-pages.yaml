@@ -53,9 +53,10 @@ jobs:
           poetry install --no-interaction
           poetry run ghpypi --output=docs --repositories=repositories.txt --token=${{ secrets.GITHUB_TOKEN }}
 
-      - name: Push changelog updates
+      - name: Push pages updates
         run: |
-          git push origin main --tags
+          git commit -am "chore: automatic index update [skip ci]"
+          git push origin main
 
       - name: Upload site
         uses: actions/upload-pages-artifact@v3
