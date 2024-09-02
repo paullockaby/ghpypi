@@ -26,11 +26,7 @@ clean:
 
 .PHONY: pre-commit
 pre-commit:
-	pre-commit install --hook-type commit-msg --hook-type pre-push --hook-type pre-commit
-
-.PHONY: bump
-bump:
-	cz bump --changelog
+	pre-commit install
 
 .PHONY: bump-check
 bump-check:

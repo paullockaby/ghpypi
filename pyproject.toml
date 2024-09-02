@@ -1,3 +1,9 @@
+[project]
+name = "ghpypi"
+readme = "README.md"
+license = {file = "LICENSE"}
+requires-python = ">=3.9 <3.13"
+
 [tool.poetry]
 name = "ghpypi"
 version = "0.0.0"  # DO NOT CHANGE -- set during build
