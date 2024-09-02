@@ -204,10 +204,7 @@ def build(packages: Dict[str, Set[Package]], output: str, title: str) -> None:
 
 
 def create_package(artifact: Artifact) -> Package:
-    if (
-        not re.match(r"[a-zA-Z\d_\-\.\+]+$", artifact.filename)
-        or ".." in artifact.filename
-    ):
+    if not re.match(r"[a-zA-Z\d_\-\.\+]+$", artifact.filename) or ".." in artifact.filename:
         raise ValueError(f"unsafe package name: {artifact.filename}")
 
     # set values that the user did not provide
@@ -315,12 +312,7 @@ def create_artifacts(assets: list[dict]) -> Iterator[Artifact]:
         url = asset["browser_download_url"]
 
         # we only want wheels and tar.gz and maybe pre-existing checksums
-        if not (
-            name.endswith(".whl")
-            or name.endswith(".gz")
-            or name.endswith(".bz2")
-            or name == "sha256sum.txt"
-        ):
+        if not (name.endswith(".whl") or name.endswith(".gz") or name.endswith(".bz2") or name == "sha256sum.txt"):
             continue
 
         if name == "sha256sum.txt":
@@ -332,12 +324,7 @@ def create_artifacts(assets: list[dict]) -> Iterator[Artifact]:
 
             # split lines then split each line
             sha256sums = {
-                x[1]: x[0]
-                for x in [
-                    line.strip().split()
-                    for line in response.text.split("\n")
-                    if len(line.strip())
-                ]
+                x[1]: x[0] for x in [line.strip().split() for line in response.text.split("\n") if len(line.strip())]
             }
 
         else:

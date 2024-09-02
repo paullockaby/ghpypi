@@ -36,13 +36,24 @@ repos:
       - id: detect-private-key
         stages: [pre-commit]
       - id: mixed-line-ending
-        exclude: "(^.idea/|.vscode/)"
+        exclude: "(^.idea/|.vscode/|docs/)"
         stages: [pre-commit]
       - id: trailing-whitespace
         exclude: "(^.idea/|.vscode/|docs/)"
         stages: [pre-commit]
       - id: end-of-file-fixer
         exclude: "(^.idea/|.vscode/|docs/)"
+        stages: [pre-commit]
+      - id: no-commit-to-branch
+        args: [--branch, main]
+        stages: [pre-commit]
+
+  - repo: https://github.com/psf/black-pre-commit-mirror
+    rev: 24.8.0
+    hooks:
+      - id: black
+        language_version: python3.12
+        args: [--line-length=120]
         stages: [pre-commit]
 
   - repo: https://github.com/pycqa/isort
@@ -51,14 +62,8 @@ repos:
       - id: isort
         stages: [pre-commit]
 
-  - repo: https://github.com/psf/black
-    rev: 24.4.2
-    hooks:
-      - id: black
-        stages: [pre-commit]
-
   - repo: https://github.com/pycqa/flake8
-    rev: 7.1.0
+    rev: 7.1.1
     hooks:
       - id: flake8
         stages: [pre-commit]

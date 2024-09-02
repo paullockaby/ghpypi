@@ -1,0 +1,77 @@
+name: Upload GitHub Pages
+
+on:
+  # allow triggering manually
+  workflow_dispatch:
+
+  # allow programmatic triggers
+  repository_dispatch:
+
+  # trigger on merges into main (in case PRs are not required)
+  push:
+    branches:
+      - main
+
+  # run every monday at 12am, UTC
+  schedule:
+    - cron: "0 0 * * 1"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ssh-key: "${{ secrets.DEPLOY_KEY }}"
+
+      - name: Install poetry
+        run: pipx install poetry
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.x"
+          cache: "poetry"
+
+      - name: Setup GitHub Pages
+        id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Build site
+        run: |
+          poetry install --no-interaction
+          poetry run ghpypi --output=docs --repositories=repositories.txt --token=${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push changelog updates
+        run: |
+          git push origin main --tags
+
+      - name: Upload site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./docs
+
+  deploy:
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    needs: [build]
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

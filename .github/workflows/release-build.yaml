@@ -1,0 +1,21 @@
+name: Build Release
+
+on:
+  push:
+    tags:
+    - "v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: |
+          echo "Finished building and pushing containers for version ${{ github.ref_name }}."
