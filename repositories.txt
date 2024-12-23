@@ -1,2 +1,2 @@
 paullockaby/ghpypi
-paullockaby/test-repo
+paullockaby/test-python
