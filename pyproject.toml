@@ -12,6 +12,10 @@ dependencies = []
 ghpypi = "ghpypi:main"
 
 [tool.poetry]
+name = "ghpypi"
+version = "0.0.0"  # DO NOT CHANGE -- set during build
+description = "A custom package index generator."
+authors = ["Paul Lockaby <paul@paullockaby.com>"]
 packages = [{include = "ghpypi", from = "src"}]
 
 [tool.poetry.dependencies]
