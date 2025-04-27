@@ -43,6 +43,13 @@ def parse_arguments(arguments: List[str]) -> argparse.Namespace:
         default="My Private PyPI",
     )
     parser.add_argument(
+        "--merge-duplicates",
+        dest="merge_duplicates",
+        action="store_true",
+        default=False,
+        help="if multiple packages with the same name are found, merge them -- you probably do NOT want to set this",
+    )
+    parser.add_argument(
         "-v",
         "--verbose",
         dest="verbose",
@@ -74,6 +81,7 @@ def main() -> None:
         args.token,
         args.token_stdin,
         args.title,
+        args.merge_duplicates,
     )
 
 

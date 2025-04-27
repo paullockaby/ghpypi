@@ -281,6 +281,42 @@ def get_github_token(token: Optional[str], token_stdin: bool) -> str:
     raise ValueError("No value for GITHUB_TOKEN.")
 
 
+# this fetches release artifacts for a given repository
+# release artifacts just say "this is a release and it has these files"
+# it is an array that has elements like this:
+#
+#    {'browser_download_url': 'https://github.com/plockaby/test-python/releases/download/v1.4.1/testrepo-1.4.1-py3-none-any.whl',
+#      'content_type': 'application/octet-stream',
+#      'created_at': '2025-04-27T05:33:49Z',
+#      'download_count': 0,
+#      'id': 249839047,
+#      'label': None,
+#      'name': 'testrepo-1.4.1-py3-none-any.whl',
+#      'node_id': 'RA_kwDOOgZUss4O5D3H',
+#      'size': 8658,
+#      'state': 'uploaded',
+#      'updated_at': '2025-04-27T05:33:50Z',
+#      'uploader': {'avatar_url': 'https://avatars.githubusercontent.com/u/633173?v=4',
+#                   'events_url': 'https://api.github.com/users/plockaby/events{/privacy}',
+#                   'followers_url': 'https://api.github.com/users/plockaby/followers',
+#                   'following_url': 'https://api.github.com/users/plockaby/following{/other_user}',
+#                   'gists_url': 'https://api.github.com/users/plockaby/gists{/gist_id}',
+#                   'gravatar_id': '',
+#                   'html_url': 'https://github.com/plockaby',
+#                   'id': 633173,
+#                   'login': 'plockaby',
+#                   'node_id': 'MDQ6VXNlcjYzMzE3Mw==',
+#                   'organizations_url': 'https://api.github.com/users/plockaby/orgs',
+#                   'received_events_url': 'https://api.github.com/users/plockaby/received_events',
+#                   'repos_url': 'https://api.github.com/users/plockaby/repos',
+#                   'site_admin': False,
+#                   'starred_url': 'https://api.github.com/users/plockaby/starred{/owner}{/repo}',
+#                   'subscriptions_url': 'https://api.github.com/users/plockaby/subscriptions',
+#                   'type': 'User',
+#                   'url': 'https://api.github.com/users/plockaby',
+#                   'user_view_type': 'public'},
+#      'url': 'https://api.github.com/repos/plockaby/test-python/releases/assets/249839047'}
+#
 def get_artifacts(token: str, repository: Repository) -> Iterator[Artifact]:
     logger.info(
         "fetching release artifacts for %s/%s",
@@ -367,11 +403,27 @@ def run(
     token: str,
     token_stdin: bool,
     title: Optional[str] = None,
+    merge_duplicates: Optional[bool] = None,
 ) -> None:
+    if merge_duplicates is None:
+        merge_duplicates = False
+
     packages = {}
     token = get_github_token(token, token_stdin)
     for repository in load_repositories(repositories):
-        packages.update(create_packages(get_artifacts(token, repository)))
+        # this creates a dictionary of sets
+        # the key is the name of the package
+        # the value is a set of packages
+        data = create_packages(get_artifacts(token, repository))
+
+        for key, value in data.items():
+            logger.info("found %d files for package %s", len(value), key)
+            if merge_duplicates:
+                # if this key is already in the dict then merge the packages
+                packages[key] = packages.get(key, set()) | value
+            else:
+                # if this key is already in the dict then replace it
+                packages[key] = value
 
     # set a default title
     if title is None:
