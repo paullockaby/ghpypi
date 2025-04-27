@@ -7,7 +7,7 @@ import os.path
 import re
 import sys
 from datetime import datetime
-from typing import Any, Dict, Iterator, List, NamedTuple, Optional, Set, Tuple, cast
+from typing import Any, Iterator, NamedTuple, Optional, cast
 
 import distlib.wheel  # type: ignore
 import github
@@ -37,7 +37,7 @@ def remove_package_extension(name: str) -> str:
     return name
 
 
-def guess_name_version_from_filename(filename: str) -> Tuple[str, Optional[str]]:
+def guess_name_version_from_filename(filename: str) -> tuple[str, Optional[str]]:
     if filename.endswith(".whl"):
         m = distlib.wheel.FILENAME_RE.match(filename)
         if m is not None:
@@ -62,7 +62,7 @@ def guess_name_version_from_filename(filename: str) -> Tuple[str, Optional[str]]
                 if "." in part and re.search(r"\d", part):
                     name, version = "-".join(parts[0:i]), "-".join(parts[i:])
 
-    # possible with poorly-named files
+    # possible with poorly named files
     if len(name) <= 0:
         raise ValueError(f"invalid package name: {filename}")
 
@@ -97,13 +97,13 @@ class Package(NamedTuple):
     def __str__(self: "Package") -> str:
         return f"{self.version}, {self.uploaded_at.strftime('%Y-%m-%d %H:%M:%S')}, {self.uploaded_by}"  # noqa Q000
 
-    def __lt__(self: Tuple[object, ...], other: Tuple[object, ...]) -> bool:
+    def __lt__(self: tuple[object, ...], other: tuple[object, ...]) -> bool:
         return cast("Package", self).sort_key < cast("Package", other).sort_key
 
     @property
     def sort_key(
         self: "Package",
-    ) -> Tuple[str, packaging.version.Version, str]:
+    ) -> tuple[str, packaging.version.Version, str]:
         """Sort key for a file name."""
         return (
             self.name,
@@ -118,10 +118,10 @@ class Package(NamedTuple):
         )
 
 
-def get_package_json(files: List[Package]) -> Dict[str, Any]:
+def get_package_json(files: list[Package]) -> dict[str, Any]:
     # https://warehouse.pypa.io/api-reference/json.html
     # note: the full api contains much more, we only output the info we have
-    by_version: Dict[str, List[Dict[str, Any]]] = collections.defaultdict(list)
+    by_version: dict[str, list[dict[str, Any]]] = collections.defaultdict(list)
 
     latest = files[-1]
     for f in files:
@@ -143,7 +143,7 @@ def get_package_json(files: List[Package]) -> Dict[str, Any]:
     }
 
 
-def build(packages: Dict[str, Set[Package]], output: str, title: str) -> None:
+def build(packages: dict[str, set[Package]], output: str, title: str) -> None:
     simple = os.path.join(output, "simple")
     pypi = os.path.join(output, "pypi")
 
@@ -225,8 +225,8 @@ def create_package(artifact: Artifact) -> Package:
     )
 
 
-def create_packages(artifacts: Iterator[Artifact]) -> Dict[str, Set[Package]]:
-    packages: Dict[str, Set[Package]] = collections.defaultdict(set)
+def create_packages(artifacts: Iterator[Artifact]) -> dict[str, set[Package]]:
+    packages: dict[str, set[Package]] = collections.defaultdict(set)
     for artifact in artifacts:
         try:
             package = create_package(artifact)
@@ -246,7 +246,7 @@ def load_repositories(path: str) -> Iterator[Repository]:
             if line.startswith("#") or len(line) == 0:
                 continue
 
-            # expect each line to look like "org/repo"
+            # expect each line to look like "owner/repo"
             parts = line.split("/")
             if len(parts) == 2 and len(parts[0]) and len(parts[1]):
                 logger.info("found repository: %s", line)
@@ -281,6 +281,42 @@ def get_github_token(token: Optional[str], token_stdin: bool) -> str:
     raise ValueError("No value for GITHUB_TOKEN.")
 
 
+# this fetches release artifacts for a given repository
+# release artifacts just say "this is a release and it has these files"
+# it is an array that has elements like this:
+#
+#    {'browser_download_url': 'https://github.com/plockaby/test-python/releases/download/v1.4.1/testrepo-1.4.1-py3-none-any.whl',
+#      'content_type': 'application/octet-stream',
+#      'created_at': '2025-04-27T05:33:49Z',
+#      'download_count': 0,
+#      'id': 249839047,
+#      'label': None,
+#      'name': 'testrepo-1.4.1-py3-none-any.whl',
+#      'node_id': 'RA_kwDOOgZUss4O5D3H',
+#      'size': 8658,
+#      'state': 'uploaded',
+#      'updated_at': '2025-04-27T05:33:50Z',
+#      'uploader': {'avatar_url': 'https://avatars.githubusercontent.com/u/633173?v=4',
+#                   'events_url': 'https://api.github.com/users/plockaby/events{/privacy}',
+#                   'followers_url': 'https://api.github.com/users/plockaby/followers',
+#                   'following_url': 'https://api.github.com/users/plockaby/following{/other_user}',
+#                   'gists_url': 'https://api.github.com/users/plockaby/gists{/gist_id}',
+#                   'gravatar_id': '',
+#                   'html_url': 'https://github.com/plockaby',
+#                   'id': 633173,
+#                   'login': 'plockaby',
+#                   'node_id': 'MDQ6VXNlcjYzMzE3Mw==',
+#                   'organizations_url': 'https://api.github.com/users/plockaby/orgs',
+#                   'received_events_url': 'https://api.github.com/users/plockaby/received_events',
+#                   'repos_url': 'https://api.github.com/users/plockaby/repos',
+#                   'site_admin': False,
+#                   'starred_url': 'https://api.github.com/users/plockaby/starred{/owner}{/repo}',
+#                   'subscriptions_url': 'https://api.github.com/users/plockaby/subscriptions',
+#                   'type': 'User',
+#                   'url': 'https://api.github.com/users/plockaby',
+#                   'user_view_type': 'public'},
+#      'url': 'https://api.github.com/repos/plockaby/test-python/releases/assets/249839047'}
+#
 def get_artifacts(token: str, repository: Repository) -> Iterator[Artifact]:
     logger.info(
         "fetching release artifacts for %s/%s",
@@ -288,7 +324,7 @@ def get_artifacts(token: str, repository: Repository) -> Iterator[Artifact]:
         repository.name,
     )
 
-    gh = github.Github(token)
+    gh = github.Github(auth=github.Auth.Token(token))
     gh_repo = gh.get_repo(f"{repository.owner}/{repository.name}")
     releases = gh_repo.get_releases()
 
@@ -322,7 +358,7 @@ def create_artifacts(assets: list[dict]) -> Iterator[Artifact]:
             # set the encoding to ascii so that we don't make the system guess
             response.encoding = "ascii"
 
-            # split lines then split each line
+            # split the lines, then split each line
             sha256sums = {
                 x[1]: x[0] for x in [line.strip().split() for line in response.text.split("\n") if len(line.strip())]
             }
@@ -367,11 +403,27 @@ def run(
     token: str,
     token_stdin: bool,
     title: Optional[str] = None,
+    merge_duplicates: Optional[bool] = None,
 ) -> None:
+    if merge_duplicates is None:
+        merge_duplicates = False
+
     packages = {}
     token = get_github_token(token, token_stdin)
     for repository in load_repositories(repositories):
-        packages.update(create_packages(get_artifacts(token, repository)))
+        # this creates a dictionary of sets
+        # the key is the name of the package
+        # the value is a set of packages
+        data = create_packages(get_artifacts(token, repository))
+
+        for key, value in data.items():
+            logger.info("found %d files for package %s", len(value), key)
+            if merge_duplicates:
+                # if this key is already in the dict then merge the packages
+                packages[key] = packages.get(key, set()) | value
+            else:
+                # if this key is already in the dict then replace it
+                packages[key] = value
 
     # set a default title
     if title is None:

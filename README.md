@@ -187,7 +187,7 @@ The `WORKFLOW_TOKEN` is a personal access token that is granted `repo` rights to
 
 ### Using your deployed index server with pip (or poetry)
 
-When running pip, pass `--extra-index-url https://myorg.github.io/ghpypi/simple` or set the environment variable `PIP_EXTRA_INDEX_URL==https://myorg.github.io/ghpypi/simple`. If you're using [poetry](https://python-poetry.org/) then simply add this to your `pyproject.toml` file:
+When running pip, pass `--extra-index-url https://myorg.github.io/ghpypi/simple` or set the environment variable `PIP_EXTRA_INDEX_URL=https://myorg.github.io/ghpypi/simple`. If you're using [poetry](https://python-poetry.org/) then simply add this to your `pyproject.toml` file:
 
 ```toml
 [[tool.poetry.source]]
