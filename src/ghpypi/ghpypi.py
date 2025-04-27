@@ -7,7 +7,7 @@ import os.path
 import re
 import sys
 from datetime import datetime
-from typing import Any, Dict, Iterator, List, NamedTuple, Optional, Set, Tuple, cast
+from typing import Any, Iterator, NamedTuple, Optional, cast
 
 import distlib.wheel  # type: ignore
 import github
@@ -37,7 +37,7 @@ def remove_package_extension(name: str) -> str:
     return name
 
 
-def guess_name_version_from_filename(filename: str) -> Tuple[str, Optional[str]]:
+def guess_name_version_from_filename(filename: str) -> tuple[str, Optional[str]]:
     if filename.endswith(".whl"):
         m = distlib.wheel.FILENAME_RE.match(filename)
         if m is not None:
@@ -62,7 +62,7 @@ def guess_name_version_from_filename(filename: str) -> Tuple[str, Optional[str]]
                 if "." in part and re.search(r"\d", part):
                     name, version = "-".join(parts[0:i]), "-".join(parts[i:])
 
-    # possible with poorly-named files
+    # possible with poorly named files
     if len(name) <= 0:
         raise ValueError(f"invalid package name: {filename}")
 
@@ -97,13 +97,13 @@ class Package(NamedTuple):
     def __str__(self: "Package") -> str:
         return f"{self.version}, {self.uploaded_at.strftime('%Y-%m-%d %H:%M:%S')}, {self.uploaded_by}"  # noqa Q000
 
-    def __lt__(self: Tuple[object, ...], other: Tuple[object, ...]) -> bool:
+    def __lt__(self: tuple[object, ...], other: tuple[object, ...]) -> bool:
         return cast("Package", self).sort_key < cast("Package", other).sort_key
 
     @property
     def sort_key(
         self: "Package",
-    ) -> Tuple[str, packaging.version.Version, str]:
+    ) -> tuple[str, packaging.version.Version, str]:
         """Sort key for a file name."""
         return (
             self.name,
@@ -118,10 +118,10 @@ class Package(NamedTuple):
         )
 
 
-def get_package_json(files: List[Package]) -> Dict[str, Any]:
+def get_package_json(files: list[Package]) -> dict[str, Any]:
     # https://warehouse.pypa.io/api-reference/json.html
     # note: the full api contains much more, we only output the info we have
-    by_version: Dict[str, List[Dict[str, Any]]] = collections.defaultdict(list)
+    by_version: dict[str, list[dict[str, Any]]] = collections.defaultdict(list)
 
     latest = files[-1]
     for f in files:
@@ -143,7 +143,7 @@ def get_package_json(files: List[Package]) -> Dict[str, Any]:
     }
 
 
-def build(packages: Dict[str, Set[Package]], output: str, title: str) -> None:
+def build(packages: dict[str, set[Package]], output: str, title: str) -> None:
     simple = os.path.join(output, "simple")
     pypi = os.path.join(output, "pypi")
 
@@ -225,8 +225,8 @@ def create_package(artifact: Artifact) -> Package:
     )
 
 
-def create_packages(artifacts: Iterator[Artifact]) -> Dict[str, Set[Package]]:
-    packages: Dict[str, Set[Package]] = collections.defaultdict(set)
+def create_packages(artifacts: Iterator[Artifact]) -> dict[str, set[Package]]:
+    packages: dict[str, set[Package]] = collections.defaultdict(set)
     for artifact in artifacts:
         try:
             package = create_package(artifact)
@@ -246,7 +246,7 @@ def load_repositories(path: str) -> Iterator[Repository]:
             if line.startswith("#") or len(line) == 0:
                 continue
 
-            # expect each line to look like "org/repo"
+            # expect each line to look like "owner/repo"
             parts = line.split("/")
             if len(parts) == 2 and len(parts[0]) and len(parts[1]):
                 logger.info("found repository: %s", line)
@@ -322,7 +322,7 @@ def create_artifacts(assets: list[dict]) -> Iterator[Artifact]:
             # set the encoding to ascii so that we don't make the system guess
             response.encoding = "ascii"
 
-            # split lines then split each line
+            # split the lines, then split each line
             sha256sums = {
                 x[1]: x[0] for x in [line.strip().split() for line in response.text.split("\n") if len(line.strip())]
             }
