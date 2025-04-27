@@ -30,7 +30,7 @@ How is this different from other static PyPI index generators? This one takes a 
 
 ## Quick start
 
-To get started we are going to:
+To get started, we are going to:
 
 1. Generate a GitHub token with the `repo` permissions.
 1. Create a list of GitHub repositories that contain releases that we want to index into our new PyPI repository.
@@ -114,7 +114,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12.x"
+          python-version: "3.13.x"
           cache: "poetry"
 
       - name: Setup GitHub Pages
@@ -247,7 +247,7 @@ If you have security feedback you can reach out to [contact@paullockaby.com](mai
 
 ## License
 
-Copyright &copy; 2021-2024 Paul Lockaby. All rights reserved.
+Copyright &copy; 2021-2025 Paul Lockaby. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0)
 
