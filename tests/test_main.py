@@ -140,6 +140,24 @@ def test_load_repositories(tmp_path: PosixPath):
     assert result[1] == ghpypi.Repository("baz", "bat")
 
 
+def test_load_duplicate_repositories(tmp_path: PosixPath):
+    tmp_data = tmp_path / "repos.txt"
+    tmp_data.write_text(
+        """
+        # these have the same name but are in different projects
+        foo/bar
+        baz/bar
+    """,
+    )
+
+    tmp_data_path = str(tmp_data)
+    repos = ghpypi.load_repositories(tmp_data_path)
+    result = list(repos)
+    assert len(result) == 2
+    assert result[0] == ghpypi.Repository("foo", "bar")
+    assert result[1] == ghpypi.Repository("baz", "bar")
+
+
 @pytest.mark.parametrize(
     "data",
     (

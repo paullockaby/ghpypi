@@ -288,7 +288,7 @@ def get_artifacts(token: str, repository: Repository) -> Iterator[Artifact]:
         repository.name,
     )
 
-    gh = github.Github(token)
+    gh = github.Github(auth=github.Auth.Token(token))
     gh_repo = gh.get_repo(f"{repository.owner}/{repository.name}")
     releases = gh_repo.get_releases()
 
