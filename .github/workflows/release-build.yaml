@@ -16,22 +16,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure Docker for multi-arch builds
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker buildx for multi-arch builds
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to the GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build, tag, and push docker image to the GitHub Container Registry
-        run: make push
-
       - name: Install poetry
         run: pipx install poetry
 
@@ -55,4 +39,4 @@ jobs:
           tag_name: "${{ github.ref_name }}"
 
       - run: |
-          echo "Finished building and pushing containers for version ${{ github.ref_name }}."
+          echo "Finished building for version ${{ github.ref_name }}."
