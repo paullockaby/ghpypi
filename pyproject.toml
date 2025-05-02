@@ -33,7 +33,7 @@ requests = "^2.31.0"
 pytest = "^8.0.0"
 pytest-cov = "^6.0.0"
 pytest-mock = "^3.11.1"
-pytest-mypy = "^0.10.3"
+pytest-mypy = "^1.0.1"
 
 # mypy dependencies
 types-requests = "^2.31.0.8"
