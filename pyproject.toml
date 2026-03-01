@@ -38,7 +38,7 @@ pytest-mypy = "^1.0.1"
 # mypy dependencies
 types-requests = "^2.31.0.8"
 types-atomicwrites = "^1.4.5.1"
-responses = "^0.25.0"
+responses = "^0.26.0"
 
 [build-system]
 requires = ["poetry-core>=2.0"]
